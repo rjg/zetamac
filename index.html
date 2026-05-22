@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#f2f2f7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Zetamac">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<title>Zetamac</title>
+<style>
+  /* ---------- base ---------- */
+  :root{
+    --blue:#007aff; --purple:#c645d6; --red:#ff3b30; --green:#34c759; --orange:#ff9500;
+    --bg:#f2f2f7; --card:#fff; --line:#e5e5ea; --ink:#1c1c1e; --muted:#8e8e93;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--ink);
+    -webkit-text-size-adjust:100%;
+    overscroll-behavior:none;
+  }
+  button,input{font-family:inherit;}
+  button{cursor:pointer;border:none;background:none;touch-action:manipulation;}
+  .muted{color:var(--muted);}
+
+  /* ---------- screens ---------- */
+  .screen{display:none;min-height:100%;flex-direction:column;}
+  .screen.active{display:flex;}
+  #screen-game{background:#fff;}
+
+  /* logo */
+  .logo{font-weight:300;letter-spacing:.5px;}
+  .logo b{font-weight:400;}
+
+  /* ---------- home ---------- */
+  .home-top{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:calc(env(safe-area-inset-top) + 10px) 18px 4px;
+  }
+  .icon-btn{font-size:22px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;}
+  .home-title{text-align:center;margin:-30px 0 2px;}
+  .home-title .logo{font-size:30px;}
+  .home-sub{text-align:center;font-size:13px;color:var(--muted);margin-bottom:14px;}
+  .home-actions{display:flex;gap:12px;padding:0 16px 18px;}
+  .big-btn{
+    flex:1;padding:15px 8px;border-radius:14px;color:#fff;font-size:17px;font-weight:600;
+    touch-action:manipulation;
+  }
+  .big-btn.blue{background:var(--blue);}
+  .big-btn.purple{background:var(--purple);}
+  .big-btn:active{filter:brightness(.92);}
+
+  .list-head{
+    display:flex;justify-content:space-between;align-items:baseline;
+    padding:6px 18px;font-size:14px;color:var(--muted);
+  }
+  .list-head .sort{color:var(--blue);font-weight:600;}
+  #games-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:96px;}
+  .game-row{
+    position:relative;background:var(--card);border-bottom:1px solid var(--line);
+    overflow:hidden;touch-action:pan-y;
+  }
+  .game-row-main{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:12px 18px;background:var(--card);position:relative;
+    transition:transform .18s ease;will-change:transform;
+  }
+  .game-row.swiped .game-row-main{transform:translateX(-84px);}
+  .game-score{font-size:16px;}
+  .game-rate{font-size:12px;color:var(--muted);margin-top:2px;}
+  .game-date{font-size:13px;color:var(--muted);text-align:right;max-width:48%;}
+  .row-delete{
+    position:absolute;top:0;right:0;bottom:0;width:84px;background:var(--red);
+    color:#fff;font-size:22px;display:flex;align-items:center;justify-content:center;
+  }
+  .empty{padding:40px 24px;text-align:center;color:var(--muted);font-size:15px;}
+
+  .fab{
+    position:fixed;left:50%;transform:translateX(-50%);
+    bottom:calc(env(safe-area-inset-bottom) + 16px);
+    background:var(--blue);color:#fff;font-weight:600;font-size:15px;
+    padding:11px 20px;border-radius:22px;box-shadow:0 4px 14px rgba(0,0,0,.25);
+    display:flex;align-items:center;gap:7px;z-index:20;
+  }
+  .fab:active{filter:brightness(.92);}
+
+  /* ---------- game ---------- */
+  .game-top{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:calc(env(safe-area-inset-top) + 10px) 18px 0;
+  }
+  .game-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;}
+  .game-stat{font-size:21px;font-weight:600;}
+  .problem{font-size:46px;font-weight:400;letter-spacing:1px;}
+  #answer{
+    width:170px;padding:13px;font-size:20px;text-align:center;
+    border:1px solid var(--line);border-radius:12px;outline:none;
+    background:#fff;color:var(--ink);touch-action:manipulation;
+  }
+  #answer::placeholder{color:#c7c7cc;}
+
+  /* ---------- sheets ---------- */
+  #backdrop{
+    position:fixed;inset:0;background:rgba(0,0,0,.35);opacity:0;pointer-events:none;
+    transition:opacity .25s;z-index:30;
+  }
+  #backdrop.show{opacity:1;pointer-events:auto;}
+  .sheet{
+    position:fixed;left:0;right:0;bottom:0;z-index:40;
+    background:#fff;border-radius:14px 14px 0 0;
+    max-height:92vh;display:flex;flex-direction:column;
+    transform:translateY(110%);transition:transform .3s cubic-bezier(.32,.72,0,1);
+  }
+  .sheet.open{transform:translateY(0);}
+  .grabber{width:36px;height:5px;border-radius:3px;background:#d1d1d6;margin:8px auto 2px;}
+  .sheet-inner{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 20px calc(env(safe-area-inset-bottom) + 28px);}
+  .sheet-close{
+    position:absolute;top:12px;right:14px;width:30px;height:30px;border-radius:50%;
+    background:#e5e5ea;color:#8e8e93;font-size:17px;font-weight:700;z-index:2;
+  }
+  .sheet h1{font-size:26px;margin:10px 0 2px;}
+  .sheet h2{font-size:19px;margin:18px 0 8px;}
+  .sheet h3{font-size:15px;margin:18px 0 6px;color:var(--muted);font-weight:600;}
+
+  /* settings */
+  .op-row{padding:14px 0 4px;border-bottom:1px solid var(--line);}
+  .op-head{display:flex;justify-content:space-between;align-items:center;}
+  .op-head .name{font-size:17px;font-weight:600;}
+  .op-note{font-size:12px;color:var(--muted);margin:2px 0 8px;}
+  .range{font-size:15px;color:#3a3a3c;margin:6px 0 10px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
+  .rng{
+    width:48px;padding:6px 4px;text-align:center;font-size:15px;
+    border:1px solid var(--line);border-radius:7px;outline:none;
+  }
+  .switch{position:relative;display:inline-block;width:51px;height:31px;}
+  .switch input{opacity:0;width:0;height:0;}
+  .slider{
+    position:absolute;inset:0;background:#e9e9ea;border-radius:31px;transition:.2s;
+  }
+  .slider::before{
+    content:"";position:absolute;width:27px;height:27px;left:2px;top:2px;
+    background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3);
+  }
+  .switch input:checked + .slider{background:var(--green);}
+  .switch input:checked + .slider::before{transform:translateX(20px);}
+  .duration-row{display:flex;align-items:center;justify-content:space-between;margin:18px 0;}
+  .duration-row .lbl{font-size:17px;}
+  .step{display:flex;align-items:center;gap:2px;}
+  .step button{
+    width:32px;height:32px;border-radius:8px;background:#e5e5ea;font-size:18px;font-weight:700;color:#333;
+  }
+  #set-duration{width:58px;padding:7px 4px;text-align:center;font-size:15px;border:1px solid var(--line);border-radius:7px;}
+  .reset-btn{background:var(--red);color:#fff;font-weight:600;padding:8px 16px;border-radius:10px;font-size:15px;}
+
+  .preset-card{
+    border-radius:12px;padding:13px 14px;margin:10px 0;border:1.5px solid transparent;
+  }
+  .preset-card.sel{border-color:var(--blue);}
+  .preset-card .pc-top{display:flex;justify-content:space-between;align-items:center;}
+  .preset-card .pc-name{font-size:17px;font-weight:700;}
+  .preset-card .badge{
+    background:var(--blue);color:#fff;font-size:11px;font-weight:700;
+    padding:3px 9px;border-radius:10px;
+  }
+  .preset-card .pc-line{font-size:12.5px;color:#48484a;margin-top:3px;}
+  .pc-blue{background:#e8f1ff;} .pc-orange{background:#fff1e0;}
+  .pc-red{background:#ffe9e7;} .pc-green{background:#e7f8ec;} .pc-purple{background:#f6e9fb;}
+
+  /* options dropdown */
+  #options-menu{
+    position:fixed;z-index:50;background:#fff;border-radius:13px;
+    box-shadow:0 10px 40px rgba(0,0,0,.25);padding:5px 0;min-width:190px;
+    transform-origin:top right;display:none;
+  }
+  #options-menu.open{display:block;}
+  .menu-item{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:11px 16px;font-size:16px;border-bottom:1px solid #f0f0f2;width:100%;text-align:left;
+  }
+  .menu-item:last-child{border-bottom:none;}
+  .menu-item .check{color:var(--blue);font-weight:700;}
+  .menu-item:active{background:#f2f2f7;}
+
+  /* results / stats tables */
+  .res-score{font-size:30px;font-weight:700;margin-top:6px;}
+  .res-rate{font-size:14px;color:var(--muted);margin-bottom:6px;}
+  .op-table{width:100%;border-collapse:collapse;margin:6px 0;font-size:14px;}
+  .op-table th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:6px 8px;}
+  .op-table td{padding:9px 8px;border-top:1px solid var(--line);}
+  .op-table td.num{text-align:right;font-variant-numeric:tabular-nums;}
+  .op-table tr.slow td{background:#fff4e0;}
+  .slow-pill{background:var(--orange);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:8px;margin-left:6px;}
+  .link{color:var(--blue);font-weight:600;font-size:15px;}
+  .prob-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 2px;border-bottom:1px solid var(--line);font-size:15px;
+  }
+  .prob-row .q b{font-weight:600;}
+  .prob-row .q .eq{color:var(--muted);}
+  .prob-row .t{color:var(--muted);font-variant-numeric:tabular-nums;}
+  .prob-row.err .t{color:var(--red);}
+  .prob-row.err .q::after{content:" •";color:var(--red);}
+
+  /* stats / bests */
+  #stats-chart{width:100%;height:170px;display:block;margin:8px 0 4px;}
+  .seg{display:flex;background:#e5e5ea;border-radius:9px;padding:2px;margin:6px 0 4px;}
+  .seg button{flex:1;padding:6px 2px;border-radius:7px;font-size:13px;font-weight:600;color:#3a3a3c;}
+  .seg button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.18);}
+  .stat-row{display:flex;justify-content:space-between;padding:9px 2px;border-bottom:1px solid var(--line);font-size:15px;}
+  .stat-val{font-weight:600;}
+  .csv-btn{
+    width:100%;margin-top:20px;padding:13px;border-radius:12px;
+    background:var(--blue);color:#fff;font-weight:600;font-size:16px;touch-action:manipulation;
+  }
+  .csv-btn:active{filter:brightness(.92);}
+
+  #toast{
+    position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);
+    background:#1c1c1e;color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;
+    opacity:0;transition:.25s;z-index:90;pointer-events:none;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<!-- ============ HOME ============ -->
+<div class="screen active" id="screen-home">
+  <div class="home-top">
+    <button class="icon-btn" id="btn-settings" aria-label="Settings">⚙️</button>
+    <button class="icon-btn" id="btn-bests" aria-label="Personal bests">🏆</button>
+  </div>
+  <div class="home-title"><span class="logo">&#8484;<b>etamac</b></span></div>
+  <div class="home-sub">Cloned from zetamac.com</div>
+  <div class="home-actions">
+    <button class="big-btn blue" id="btn-start">Start Game</button>
+    <button class="big-btn purple" id="btn-options">Game Options</button>
+  </div>
+  <div class="list-head">
+    <span>Previous Games</span>
+    <span>Sorted by: <span class="sort">Recent</span></span>
+  </div>
+  <div id="games-list"></div>
+  <button class="fab" id="btn-stats">📊 Statistics</button>
+</div>
+
+<!-- ============ GAME ============ -->
+<div class="screen" id="screen-game">
+  <div class="game-top">
+    <span class="logo" style="font-size:22px;">&#8484;<b>etamac</b></span>
+    <button class="sheet-close" id="btn-quit" style="position:static;">&times;</button>
+  </div>
+  <div class="game-body">
+    <div class="game-stat" id="game-time">Time: 120</div>
+    <div class="game-stat" id="game-score">Score: 0</div>
+    <div class="problem" id="game-problem">&nbsp;</div>
+    <input id="answer" inputmode="numeric" autocomplete="off" autocorrect="off"
+           autocapitalize="off" spellcheck="false" placeholder="Answer">
+  </div>
+</div>
+
+<!-- ============ BACKDROP + SHEETS ============ -->
+<div id="backdrop"></div>
+
+<!-- options dropdown -->
+<div id="options-menu"></div>
+
+<!-- settings sheet -->
+<div class="sheet" id="sheet-settings">
+  <div class="grabber"></div>
+  <button class="sheet-close" data-close>&times;</button>
+  <div class="sheet-inner">
+    <h1>Settings</h1>
+    <h2>Custom Settings</h2>
+
+    <div class="op-row">
+      <div class="op-head">
+        <span class="name">Addition</span>
+        <label class="switch"><input type="checkbox" id="op-add"><span class="slider"></span></label>
+      </div>
+      <div class="range">Range: (<input class="rng" id="add-min1" inputmode="numeric"> to
+        <input class="rng" id="add-max1" inputmode="numeric">) + (<input class="rng" id="add-min2" inputmode="numeric"> to
+        <input class="rng" id="add-max2" inputmode="numeric">)</div>
+    </div>
+
+    <div class="op-row">
+      <div class="op-head">
+        <span class="name">Subtraction</span>
+        <label class="switch"><input type="checkbox" id="op-sub"><span class="slider"></span></label>
+      </div>
+      <div class="op-note">Addition problems in reverse</div>
+    </div>
+
+    <div class="op-row">
+      <div class="op-head">
+        <span class="name">Multiplication</span>
+        <label class="switch"><input type="checkbox" id="op-mul"><span class="slider"></span></label>
+      </div>
+      <div class="range">Range: (<input class="rng" id="mul-min1" inputmode="numeric"> to
+        <input class="rng" id="mul-max1" inputmode="numeric">) &times; (<input class="rng" id="mul-min2" inputmode="numeric"> to
+        <input class="rng" id="mul-max2" inputmode="numeric">)</div>
+    </div>
+
+    <div class="op-row">
+      <div class="op-head">
+        <span class="name">Division</span>
+        <label class="switch"><input type="checkbox" id="op-div"><span class="slider"></span></label>
+      </div>
+      <div class="op-note">Multiplication problems in reverse</div>
+    </div>
+
+    <div class="duration-row">
+      <span class="lbl">Duration:</span>
+      <span style="display:flex;align-items:center;gap:10px;">
+        <span class="step">
+          <button id="dur-down">&minus;</button>
+          <input id="set-duration" inputmode="numeric">
+          <button id="dur-up">+</button>
+        </span>
+        <span class="muted">seconds</span>
+        <button class="reset-btn" id="btn-reset">Reset All</button>
+      </span>
+    </div>
+
+    <h2>Preset Configurations</h2>
+    <div id="preset-list"></div>
+  </div>
+</div>
+
+<!-- results sheet -->
+<div class="sheet" id="sheet-results">
+  <div class="grabber"></div>
+  <button class="sheet-close" data-close>&times;</button>
+  <div class="sheet-inner">
+    <h1 class="logo">&#8484;<b>etamac</b></h1>
+    <div class="res-score">Score: <span id="res-score">0</span></div>
+    <div class="res-rate">Rate: <span id="res-rate">0</span></div>
+    <h3>By operation</h3>
+    <table class="op-table" id="res-optable"></table>
+    <div style="margin:14px 0 4px;"><a class="link" id="res-toggle">Details &rsaquo;</a></div>
+    <div id="res-details" hidden></div>
+  </div>
+</div>
+
+<!-- stats sheet -->
+<div class="sheet" id="sheet-stats">
+  <div class="grabber"></div>
+  <button class="sheet-close" data-close>&times;</button>
+  <div class="sheet-inner">
+    <h1>Statistics</h1>
+    <div class="muted" id="stats-range" style="font-size:13px;">&nbsp;</div>
+    <canvas id="stats-chart"></canvas>
+    <div class="seg" id="stats-period"></div>
+    <h3>By operation &mdash; all sessions</h3>
+    <table class="op-table" id="stats-optable"></table>
+    <div class="muted" id="stats-summary" style="font-size:13px;margin-top:10px;"></div>
+    <button class="csv-btn" id="btn-csv">&#11015;&nbsp; Download CSV</button>
+  </div>
+</div>
+
+<!-- personal bests sheet -->
+<div class="sheet" id="sheet-bests">
+  <div class="grabber"></div>
+  <button class="sheet-close" data-close>&times;</button>
+  <div class="sheet-inner">
+    <h1>Personal Bests</h1>
+    <div id="bests-body"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* =====================================================================
+   Zetamac PWA — vanilla JS, IndexedDB storage, offline service worker.
+   Sections: storage · presets · problem generation · game loop ·
+   results · home · settings · game options · stats/bests/CSV · wiring.
+   ===================================================================== */
+
+const PLUS='+', MINUS='−', TIMES='×', DIV='÷';
+const OP_ORDER=[PLUS,MINUS,TIMES,DIV];
+const OP_NAME={[PLUS]:'Addition',[MINUS]:'Subtraction',[TIMES]:'Multiplication',[DIV]:'Division'};
+
+/* ---------- IndexedDB storage ---------- */
+const DB_NAME='zetamac', DB_VERSION=1;
+let _dbp=null;
+function openDB(){
+  if(_dbp) return _dbp;
+  _dbp=new Promise((resolve,reject)=>{
+    const req=indexedDB.open(DB_NAME,DB_VERSION);
+    req.onupgradeneeded=e=>{
+      const db=e.target.result;
+      if(!db.objectStoreNames.contains('sessions'))
+        db.createObjectStore('sessions',{keyPath:'sessionId'});
+      if(!db.objectStoreNames.contains('problems')){
+        const ps=db.createObjectStore('problems',{keyPath:'id',autoIncrement:true});
+        ps.createIndex('sessionId','sessionId',{unique:false});
+        ps.createIndex('operation','operation',{unique:false});
+        ps.createIndex('timestamp','timestamp',{unique:false});
+      }
+      if(!db.objectStoreNames.contains('meta'))
+        db.createObjectStore('meta',{keyPath:'key'});
+    };
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+  });
+  return _dbp;
+}
+function reqP(r){return new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+function txDone(t){return new Promise((res,rej)=>{t.oncomplete=()=>res();t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error);});}
+
+const Store={
+  async getConfig(){
+    const db=await openDB();
+    const r=await reqP(db.transaction('meta','readonly').objectStore('meta').get('currentConfig'));
+    return r?r.value:null;
+  },
+  async saveConfig(c){
+    const db=await openDB();
+    const t=db.transaction('meta','readwrite');
+    t.objectStore('meta').put({key:'currentConfig',value:clone(c)});
+    return txDone(t);
+  },
+  async addSession(s){
+    const db=await openDB();
+    const t=db.transaction('sessions','readwrite');
+    t.objectStore('sessions').put(s);
+    return txDone(t);
+  },
+  async addProblems(arr){
+    if(!arr.length) return;
+    const db=await openDB();
+    const t=db.transaction('problems','readwrite');
+    const os=t.objectStore('problems');
+    for(const p of arr) os.put(p);
+    return txDone(t);
+  },
+  async getSessions(){
+    const db=await openDB();
+    return reqP(db.transaction('sessions','readonly').objectStore('sessions').getAll());
+  },
+  async getProblems(sessionId){
+    const db=await openDB();
+    const os=db.transaction('problems','readonly').objectStore('problems');
+    return reqP(sessionId?os.index('sessionId').getAll(sessionId):os.getAll());
+  },
+  async deleteSession(id){
+    const db=await openDB();
+    const t=db.transaction(['sessions','problems'],'readwrite');
+    t.objectStore('sessions').delete(id);
+    const idx=t.objectStore('problems').index('sessionId');
+    await new Promise((res,rej)=>{
+      const cr=idx.openCursor(IDBKeyRange.only(id));
+      cr.onsuccess=e=>{const c=e.target.result;if(c){c.delete();c.continue();}else res();};
+      cr.onerror=()=>rej(cr.error);
+    });
+    return txDone(t);
+  },
+};
+
+/* ---------- presets ---------- */
+function R(a,b,c,d){return{min1:a,max1:b,min2:c,max2:d};}
+function mk(dur,add,mul){return{durationSec:dur,ops:{add:true,sub:true,mul:true,div:true},add,mul};}
+const PRESETS={
+  'Normal':     mk(120,R(2,100,2,100),R(2,12,2,100)),
+  'Fast':       mk(60, R(2,100,2,100),R(2,12,2,100)),
+  'Hyper':      mk(30, R(2,100,2,100),R(2,12,2,100)),
+  'Easy':       mk(120,R(1,20,1,20),  R(1,9,1,9)),
+  'Easy Fast':  mk(60, R(1,20,1,20),  R(1,9,1,9)),
+  'Easy Hyper': mk(30, R(1,20,1,20),  R(1,9,1,9)),
+  'Hard':       mk(120,R(10,100,10,100),R(2,20,2,100)),
+};
+const PRESET_COLOR={
+  'Normal':'pc-blue','Fast':'pc-orange','Hyper':'pc-red','Easy':'pc-green',
+  'Easy Fast':'pc-orange','Easy Hyper':'pc-red','Hard':'pc-purple',
+};
+const DEFAULT_PRESET='Normal';
+
+/* ---------- helpers ---------- */
+function clone(o){return JSON.parse(JSON.stringify(o));}
+function ri(a,b){if(a>b){const t=a;a=b;b=t;}return Math.floor(Math.random()*(b-a+1))+a;}
+function uuid(){
+  return (crypto.randomUUID&&crypto.randomUUID())||
+    ('s-'+Date.now()+'-'+Math.random().toString(16).slice(2));
+}
+function $(id){return document.getElementById(id);}
+function fmtSec(ms){return (ms/1000).toFixed(2)+'s';}
+function fmtRate(r){return (r||0).toFixed(6);}
+function fmtDate(iso){
+  const d=new Date(iso);
+  const day=d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  let h=d.getHours(),m=d.getMinutes();
+  const ap=h>=12?'PM':'AM'; h=h%12||12;
+  return day+' at '+h+':'+String(m).padStart(2,'0')+' '+ap;
+}
+let toastTimer=null;
+function toast(msg){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),1800);
+}
+
+/* ---------- current config ---------- */
+let config=null;
+function loadPreset(name){
+  const p=PRESETS[name]||PRESETS[DEFAULT_PRESET];
+  config={presetName:name,durationSec:p.durationSec,ops:clone(p.ops),add:clone(p.add),mul:clone(p.mul)};
+}
+loadPreset(DEFAULT_PRESET);
+
+/* ---------- problem generation ---------- */
+function anyOpEnabled(c){return c.ops.add||c.ops.sub||c.ops.mul||c.ops.div;}
+
+function genProblem(c){
+  const pool=[];
+  if(c.ops.add)pool.push('add'); if(c.ops.sub)pool.push('sub');
+  if(c.ops.mul)pool.push('mul'); if(c.ops.div)pool.push('div');
+  const kind=pool[Math.floor(Math.random()*pool.length)];
+  const a=c.add, m=c.mul;
+  if(kind==='add'){
+    const x=ri(a.min1,a.max1), y=ri(a.min2,a.max2);
+    return P(PLUS,x,y,x+y,x+' '+PLUS+' '+y);
+  }
+  if(kind==='sub'){           // addition reversed: x + y = sum  ->  sum - one = other
+    const x=ri(a.min1,a.max1), y=ri(a.min2,a.max2), sum=x+y;
+    return Math.random()<0.5
+      ? P(MINUS,sum,x,y,sum+' '+MINUS+' '+x)
+      : P(MINUS,sum,y,x,sum+' '+MINUS+' '+y);
+  }
+  if(kind==='mul'){
+    const x=ri(m.min1,m.max1), y=ri(m.min2,m.max2);
+    return P(TIMES,x,y,x*y,x+' '+TIMES+' '+y);
+  }
+  /* div: multiplication reversed: x * y = prod -> prod / one = other */
+  const x=ri(m.min1,m.max1), y=ri(m.min2,m.max2), prod=x*y;
+  return Math.random()<0.5
+    ? P(DIV,prod,x,y,prod+' '+DIV+' '+x)
+    : P(DIV,prod,y,x,prod+' '+DIV+' '+y);
+}
+function P(op,o1,o2,ans,display){
+  return {operation:op,operand1:o1,operand2:o2,correctAnswer:ans,display};
+}
+
+/* problem queue — pre-generated so there is never a frame hitch */
+let queue=[];
+function fillQueue(c){ while(queue.length<24) queue.push(genProblem(c)); }
+function nextFromQueue(c){ if(queue.length<6) fillQueue(c); return queue.shift(); }
+
+/* ---------- router ---------- */
+function showScreen(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id==='screen-'+name));
+}
+function openSheet(id){
+  closeMenu();
+  $(id).classList.add('open');
+  $('backdrop').classList.add('show');
+}
+function closeSheets(){
+  document.querySelectorAll('.sheet.open').forEach(s=>s.classList.remove('open'));
+  closeMenu();
+  $('backdrop').classList.remove('show');
+}
+function closeMenu(){ $('options-menu').classList.remove('open'); }
+
+/* ===================================================================
+   GAME
+   =================================================================== */
+let game=null;
+
+function startGame(){
+  if(!anyOpEnabled(config)){ toast('Enable at least one operation'); return; }
+  const cfg=clone(config);
+  game={
+    sessionId:uuid(), config:cfg, durationMs:cfg.durationSec*1000,
+    problems:[], wrongAnswer:null, ended:false,
+    startedAtISO:new Date().toISOString(),
+  };
+  queue=[]; fillQueue(cfg);
+  game.startTime=performance.now();
+  game.current=nextFromQueue(cfg);
+  game.problemStart=game.startTime;
+  $('game-problem').textContent=game.current.display;
+  $('game-score').textContent='Score: 0';
+  $('game-time').textContent='Time: '+cfg.durationSec;
+  $('answer').value='';
+  showScreen('game');
+  $('answer').focus();
+  game.timer=setInterval(tick,100);
+}
+
+function tick(){
+  const remaining=game.durationMs-(performance.now()-game.startTime);
+  $('game-time').textContent='Time: '+Math.max(0,Math.ceil(remaining/1000));
+  if(remaining<=0){ endGame(); }
+}
+
+function onAnswerInput(){
+  if(!game||game.ended) return;
+  const inp=$('answer');
+  const v=inp.value.replace(/[^0-9]/g,'');
+  if(v!==inp.value) inp.value=v;
+  if(v==='') return;
+  const num=Number(v), correct=game.current.correctAnswer;
+  if(num===correct){
+    commitProblem(); advance();
+  }else if(v.length>=String(correct).length){
+    /* a complete-looking but wrong entry — logged silently for the diagnostic */
+    if(game.wrongAnswer===null) game.wrongAnswer=num;
+  }
+}
+
+function commitProblem(){
+  const p=game.current;
+  game.problems.push({
+    sessionId:game.sessionId,
+    timestamp:Date.now(),
+    operation:p.operation,
+    operand1:p.operand1,
+    operand2:p.operand2,
+    correctAnswer:p.correctAnswer,
+    userAnswer:game.wrongAnswer===null?p.correctAnswer:game.wrongAnswer,
+    wasCorrect:game.wrongAnswer===null,
+    msToAnswer:Math.round(performance.now()-game.problemStart),
+  });
+}
+
+function advance(){
+  game.wrongAnswer=null;
+  game.current=nextFromQueue(game.config);
+  game.problemStart=performance.now();
+  $('answer').value='';
+  $('game-problem').textContent=game.current.display;
+  $('game-score').textContent='Score: '+game.problems.length;
+}
+
+async function endGame(){
+  if(!game||game.ended) return;
+  game.ended=true;
+  clearInterval(game.timer);
+  game.elapsedMs=performance.now()-game.startTime;
+  const probs=game.problems;
+  const session={
+    sessionId:game.sessionId,
+    presetName:game.config.presetName,
+    startedAt:game.startedAtISO,
+    endedAt:new Date().toISOString(),
+    durationSec:game.config.durationSec,
+    elapsedMs:Math.round(game.elapsedMs),
+    score:probs.length,
+    totalAnswered:probs.length,
+    errorCount:probs.filter(p=>!p.wasCorrect).length,
+    rate:probs.length/(game.elapsedMs/1000),
+    config:game.config,
+  };
+  await Store.addSession(session);
+  await Store.addProblems(probs);
+  $('answer').blur();
+  showScreen('home');
+  await renderHome();
+  openResults(session,probs);
+}
+
+function quitGame(){
+  if(!game) return;
+  game.ended=true;
+  clearInterval(game.timer);
+  $('answer').blur();
+  game=null;
+  showScreen('home');
+}
+
+/* ===================================================================
+   RESULTS
+   =================================================================== */
+function opStats(problems){
+  const map={};
+  for(const op of OP_ORDER) map[op]={op,count:0,totalMs:0,errors:0};
+  for(const p of problems){
+    const s=map[p.operation]; if(!s) continue;
+    s.count++; s.totalMs+=p.msToAnswer; if(!p.wasCorrect) s.errors++;
+  }
+  const rows=OP_ORDER.map(op=>map[op]).filter(s=>s.count>0)
+    .map(s=>({...s,avgMs:s.totalMs/s.count}));
+  let slow=null;
+  for(const r of rows) if(!slow||r.avgMs>slow.avgMs) slow=r;
+  if(slow) slow.slowest=true;
+  return rows;
+}
+
+function renderOpTable(el,rows){
+  let html='<tr><th>Operation</th><th class="num">Count</th>'+
+           '<th class="num">Avg</th><th class="num">Errors</th></tr>';
+  if(!rows.length) html+='<tr><td colspan="4" class="muted">No problems yet.</td></tr>';
+  for(const r of rows){
+    html+='<tr class="'+(r.slowest?'slow':'')+'">'+
+      '<td>'+r.op+' '+OP_NAME[r.op]+(r.slowest?'<span class="slow-pill">SLOWEST</span>':'')+'</td>'+
+      '<td class="num">'+r.count+'</td>'+
+      '<td class="num">'+fmtSec(r.avgMs)+'</td>'+
+      '<td class="num">'+r.errors+'</td></tr>';
+  }
+  el.innerHTML=html;
+}
+
+function openResults(session,problems){
+  $('res-score').textContent=session.score;
+  $('res-rate').textContent=fmtRate(session.rate);
+
+  renderOpTable($('res-optable'),opStats(problems));
+
+  const det=$('res-details');
+  det.innerHTML=problems.map(p=>
+    '<div class="prob-row'+(p.wasCorrect?'':' err')+'">'+
+      '<span class="q"><b>'+p.operand1+' '+p.operation+' '+p.operand2+'</b>'+
+        '<span class="eq"> = '+p.correctAnswer+'</span></span>'+
+      '<span class="t">'+fmtSec(p.msToAnswer)+'</span>'+
+    '</div>').join('')||'<div class="muted">No problems.</div>';
+  det.hidden=true;
+  $('res-toggle').textContent='Details ›';
+
+  openSheet('sheet-results');
+}
+
+/* ===================================================================
+   HOME — previous games list
+   =================================================================== */
+async function renderHome(){
+  const sessions=(await Store.getSessions())
+    .sort((a,b)=>new Date(b.endedAt)-new Date(a.endedAt));
+  const list=$('games-list');
+  if(sessions.length===0){
+    list.innerHTML='<div class="empty">No games yet — tap Start Game.</div>';
+    return;
+  }
+  list.innerHTML=sessions.map(s=>
+    '<div class="game-row" data-id="'+s.sessionId+'">'+
+      '<button class="row-delete" data-del="'+s.sessionId+'">🗑</button>'+
+      '<div class="game-row-main">'+
+        '<div><div class="game-score">Score: '+s.score+'</div>'+
+          '<div class="game-rate">Rate: '+fmtRate(s.rate)+'</div></div>'+
+        '<div class="game-date">Date: '+fmtDate(s.endedAt)+'</div>'+
+      '</div>'+
+    '</div>').join('');
+}
+
+/* swipe-to-delete + tap-to-open on the Previous Games list */
+(function(){
+  const list=$('games-list');
+  let sw=null, suppressClick=false;
+  function closeOthers(except){
+    list.querySelectorAll('.game-row.swiped').forEach(r=>{if(r!==except)r.classList.remove('swiped');});
+  }
+  list.addEventListener('pointerdown',e=>{
+    const row=e.target.closest('.game-row');
+    sw=row?{row,x0:e.clientX,y0:e.clientY,horiz:false,moved:false,curr:0}:null;
+  });
+  document.addEventListener('pointermove',e=>{
+    if(!sw) return;
+    const dx=e.clientX-sw.x0, dy=e.clientY-sw.y0;
+    if(!sw.horiz){
+      if(Math.abs(dy)>12 && Math.abs(dy)>=Math.abs(dx)){ sw=null; return; }
+      if(Math.abs(dx)>10) sw.horiz=true; else return;
+    }
+    sw.moved=true;
+    const base=sw.row.classList.contains('swiped')?-84:0;
+    sw.curr=Math.max(-84,Math.min(0,base+dx));
+    const main=sw.row.querySelector('.game-row-main');
+    main.style.transition='none';
+    main.style.transform='translateX('+sw.curr+'px)';
+  });
+  function endSwipe(){
+    if(!sw) return;
+    const main=sw.row.querySelector('.game-row-main');
+    main.style.transition=''; main.style.transform='';
+    if(sw.horiz && sw.moved){
+      closeOthers(sw.row);
+      sw.row.classList.toggle('swiped',sw.curr<-42);
+      suppressClick=true; setTimeout(()=>{suppressClick=false;},60);
+    }
+    sw=null;
+  }
+  document.addEventListener('pointerup',endSwipe);
+  document.addEventListener('pointercancel',endSwipe);
+  list.addEventListener('click',async e=>{
+    const del=e.target.closest('[data-del]');
+    if(del){ await Store.deleteSession(del.dataset.del); await renderHome(); return; }
+    if(suppressClick) return;
+    const row=e.target.closest('.game-row'); if(!row) return;
+    if(row.classList.contains('swiped')){ row.classList.remove('swiped'); return; }
+    const s=(await Store.getSessions()).find(x=>x.sessionId===row.dataset.id);
+    if(s) openResults(s,await Store.getProblems(row.dataset.id));
+  });
+})();
+
+/* ===================================================================
+   SETTINGS
+   =================================================================== */
+function syncSettings(){
+  $('op-add').checked=config.ops.add;
+  $('op-sub').checked=config.ops.sub;
+  $('op-mul').checked=config.ops.mul;
+  $('op-div').checked=config.ops.div;
+  $('add-min1').value=config.add.min1; $('add-max1').value=config.add.max1;
+  $('add-min2').value=config.add.min2; $('add-max2').value=config.add.max2;
+  $('mul-min1').value=config.mul.min1; $('mul-max1').value=config.mul.max1;
+  $('mul-min2').value=config.mul.min2; $('mul-max2').value=config.mul.max2;
+  $('set-duration').value=config.durationSec;
+  renderPresets();
+}
+
+function renderPresets(){
+  const wrap=$('preset-list'); let html='';
+  for(const name of Object.keys(PRESETS)){
+    const p=PRESETS[name];
+    const ops=['add','sub','mul','div'].filter(o=>p.ops[o])
+      .map(o=>({add:'Add',sub:'Sub',mul:'Mul',div:'Div'}[o])).join(', ');
+    const sel=config.presetName===name?' sel':'';
+    html+='<div class="preset-card '+PRESET_COLOR[name]+sel+'" data-preset="'+name+'">'+
+      '<div class="pc-top"><span class="pc-name">'+name+'</span>'+
+        (name===DEFAULT_PRESET?'<span class="badge">Default</span>':
+          sel?'<span class="badge">Selected</span>':'')+'</div>'+
+      '<div class="pc-line">Duration: '+p.durationSec+' seconds</div>'+
+      '<div class="pc-line">Operations: '+ops+'</div>'+
+      '<div class="pc-line">Addition/Subtraction: ('+p.add.min1+'-'+p.add.max1+') '+PLUS+'/'+MINUS+
+        ' ('+p.add.min2+'-'+p.add.max2+')</div>'+
+      '<div class="pc-line">Multiplication/Division: ('+p.mul.min1+'-'+p.mul.max1+') '+TIMES+DIV+
+        ' ('+p.mul.min2+'-'+p.mul.max2+')</div>'+
+    '</div>';
+  }
+  wrap.innerHTML=html;
+}
+
+function readSettings(){           // pull edited values back into config
+  const n=(id,d)=>{const v=parseInt($(id).value,10);return Number.isFinite(v)&&v>=0?v:d;};
+  config.ops.add=$('op-add').checked;
+  config.ops.sub=$('op-sub').checked;
+  config.ops.mul=$('op-mul').checked;
+  config.ops.div=$('op-div').checked;
+  config.add={min1:n('add-min1',1),max1:n('add-max1',1),min2:n('add-min2',1),max2:n('add-max2',1)};
+  config.mul={min1:n('mul-min1',1),max1:n('mul-max1',1),min2:n('mul-min2',1),max2:n('mul-max2',1)};
+  config.durationSec=Math.max(5,n('set-duration',120));
+  config.presetName='Custom';
+  Store.saveConfig(config);
+  renderPresets();
+}
+
+/* settings listeners */
+['op-add','op-sub','op-mul','op-div','add-min1','add-max1','add-min2','add-max2',
+ 'mul-min1','mul-max1','mul-min2','mul-max2','set-duration'].forEach(id=>{
+  $(id).addEventListener('change',readSettings);
+});
+$('dur-down').addEventListener('click',()=>{
+  $('set-duration').value=Math.max(5,(parseInt($('set-duration').value,10)||0)-10);
+  readSettings();
+});
+$('dur-up').addEventListener('click',()=>{
+  $('set-duration').value=(parseInt($('set-duration').value,10)||0)+10;
+  readSettings();
+});
+$('btn-reset').addEventListener('click',()=>{
+  loadPreset(DEFAULT_PRESET); Store.saveConfig(config); syncSettings();
+  toast('Reset to '+DEFAULT_PRESET);
+});
+$('preset-list').addEventListener('click',e=>{
+  const card=e.target.closest('[data-preset]'); if(!card) return;
+  loadPreset(card.dataset.preset); Store.saveConfig(config); syncSettings();
+  toast(card.dataset.preset+' selected');
+});
+
+/* ===================================================================
+   GAME OPTIONS dropdown
+   =================================================================== */
+function openOptionsMenu(){
+  const menu=$('options-menu');
+  const names=Object.keys(PRESETS).concat(['Custom']);
+  menu.innerHTML=names.map(n=>
+    '<button class="menu-item" data-pick="'+n+'">'+n+
+      (config.presetName===n?'<span class="check">&check;</span>':'')+'</button>'
+  ).join('');
+  /* anchor under the Game Options button */
+  const r=$('btn-options').getBoundingClientRect();
+  menu.style.top=(r.bottom+6)+'px';
+  menu.style.right=(window.innerWidth-r.right)+'px';
+  menu.classList.add('open');
+  $('backdrop').classList.add('show');
+}
+$('options-menu').addEventListener('click',e=>{
+  const item=e.target.closest('[data-pick]'); if(!item) return;
+  const pick=item.dataset.pick;
+  if(pick==='Custom'){
+    closeSheets(); syncSettings(); openSheet('sheet-settings');
+  }else{
+    loadPreset(pick); Store.saveConfig(config); closeSheets();
+    toast(pick+' selected');
+  }
+});
+
+/* ===================================================================
+   STATISTICS  /  PERSONAL BESTS  /  CSV EXPORT
+   =================================================================== */
+const PERIOD_DAYS={D:1,W:7,M:30,'6M':182,Y:365,All:Infinity};
+let statsPeriod='All';
+
+function drawChart(sessions){
+  const cv=$('stats-chart');
+  const cssW=cv.clientWidth||(window.innerWidth-40), cssH=170;
+  const dpr=window.devicePixelRatio||1;
+  cv.width=cssW*dpr; cv.height=cssH*dpr;
+  const ctx=cv.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cssW,cssH);
+  const padL=32,padR=14,padT=12,padB=22;
+  const plotW=cssW-padL-padR, plotH=cssH-padT-padB;
+  if(!sessions.length){
+    ctx.fillStyle='#8e8e93'; ctx.font='13px -apple-system,sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('No games in this period',cssW/2,cssH/2);
+    return;
+  }
+  const scores=sessions.map(s=>s.score);
+  const times=sessions.map(s=>new Date(s.endedAt).getTime());
+  const yMax=Math.ceil(Math.max(10,...scores)/25)*25;
+  let tMin=Math.min(...times), tMax=Math.max(...times);
+  if(tMin===tMax){ tMin-=43200000; tMax+=43200000; }
+  const X=t=>padL+(t-tMin)/(tMax-tMin)*plotW;
+  const Y=v=>padT+(1-v/yMax)*plotH;
+  ctx.font='10px -apple-system,sans-serif'; ctx.textBaseline='middle';
+  for(let i=0;i<=4;i++){
+    const v=yMax*i/4, y=Y(v);
+    ctx.strokeStyle='#ebebf0'; ctx.beginPath();
+    ctx.moveTo(padL,y); ctx.lineTo(cssW-padR,y); ctx.stroke();
+    ctx.fillStyle='#aeaeb2'; ctx.textAlign='right';
+    ctx.fillText(String(Math.round(v)),padL-6,y);
+  }
+  const avg=scores.reduce((a,b)=>a+b,0)/scores.length;
+  ctx.save(); ctx.strokeStyle='#34c759'; ctx.setLineDash([4,3]);
+  ctx.beginPath(); ctx.moveTo(padL,Y(avg)); ctx.lineTo(cssW-padR,Y(avg)); ctx.stroke();
+  ctx.restore();
+  ctx.strokeStyle='#007aff'; ctx.lineWidth=2; ctx.lineJoin='round'; ctx.beginPath();
+  sessions.forEach((s,i)=>{const x=X(times[i]),y=Y(s.score);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+  ctx.stroke();
+  ctx.fillStyle='#007aff';
+  sessions.forEach((s,i)=>{ctx.beginPath();ctx.arc(X(times[i]),Y(s.score),3,0,7);ctx.fill();});
+  ctx.fillStyle='#aeaeb2'; ctx.textBaseline='top'; ctx.font='10px -apple-system,sans-serif';
+  const fd=t=>new Date(t).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  ctx.textAlign='left';  ctx.fillText(fd(tMin),padL,cssH-padB+6);
+  ctx.textAlign='right'; ctx.fillText(fd(tMax),cssW-padR,cssH-padB+6);
+}
+
+async function renderStats(){
+  const sessions=(await Store.getSessions())
+    .sort((a,b)=>new Date(a.endedAt)-new Date(b.endedAt));
+  $('stats-period').innerHTML=Object.keys(PERIOD_DAYS).map(p=>
+    '<button class="'+(p===statsPeriod?'on':'')+'" data-period="'+p+'">'+p+'</button>').join('');
+  const cutoff=statsPeriod==='All'?0:Date.now()-PERIOD_DAYS[statsPeriod]*86400000;
+  const inPeriod=sessions.filter(s=>new Date(s.endedAt).getTime()>=cutoff);
+  if(inPeriod.length){
+    const f=d=>new Date(d).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+    const a=f(inPeriod[0].endedAt), b=f(inPeriod[inPeriod.length-1].endedAt);
+    $('stats-range').textContent=a===b?a:a+' – '+b;
+  }else $('stats-range').textContent='No games in this period';
+  drawChart(inPeriod);
+  const problems=await Store.getProblems();
+  renderOpTable($('stats-optable'),opStats(problems));
+  $('stats-summary').textContent=
+    sessions.length+' game'+(sessions.length===1?'':'s')+' • '+
+    problems.length+' problems answered all-time';
+}
+
+function statRow(label,val){
+  return '<div class="stat-row"><span>'+label+'</span><span class="stat-val">'+val+'</span></div>';
+}
+
+async function renderBests(){
+  const sessions=await Store.getSessions();
+  const problems=await Store.getProblems();
+  const body=$('bests-body');
+  if(!sessions.length){
+    body.innerHTML='<p class="muted">No games yet — play a game to set records.</p>';
+    return;
+  }
+  let bestScore=sessions[0], bestRate=sessions[0];
+  for(const s of sessions){
+    if(s.score>bestScore.score) bestScore=s;
+    if(s.rate>bestRate.rate) bestRate=s;
+  }
+  const byPreset={};
+  for(const s of sessions){
+    const k=s.presetName||'Custom';
+    if(!byPreset[k]||s.score>byPreset[k].score) byPreset[k]=s;
+  }
+  const rec={};
+  for(const op of OP_ORDER) rec[op]={count:0,minMs:Infinity,totalMs:0,errors:0};
+  for(const p of problems){
+    const r=rec[p.operation]; if(!r) continue;
+    r.count++; r.totalMs+=p.msToAnswer;
+    if(p.msToAnswer<r.minMs) r.minMs=p.msToAnswer;
+    if(!p.wasCorrect) r.errors++;
+  }
+  let h='<h3>Overall</h3>';
+  h+=statRow('Best score',bestScore.score+' <span class="muted">('+bestScore.presetName+')</span>');
+  h+=statRow('Best rate',fmtRate(bestRate.rate));
+  h+=statRow('Total games',sessions.length);
+  h+=statRow('Total problems',problems.length);
+  h+='<h3>Best score by preset</h3><table class="op-table">'+
+     '<tr><th>Preset</th><th class="num">Score</th><th class="num">Rate</th></tr>';
+  for(const k of Object.keys(PRESETS).concat(['Custom'])){
+    if(!byPreset[k]) continue;
+    h+='<tr><td>'+k+'</td><td class="num">'+byPreset[k].score+
+       '</td><td class="num">'+fmtRate(byPreset[k].rate)+'</td></tr>';
+  }
+  h+='</table><h3>Operation records</h3><table class="op-table">'+
+     '<tr><th>Operation</th><th class="num">Answered</th>'+
+     '<th class="num">Fastest</th><th class="num">Avg</th></tr>';
+  let any=false;
+  for(const op of OP_ORDER){
+    const r=rec[op]; if(!r.count) continue; any=true;
+    h+='<tr><td>'+op+' '+OP_NAME[op]+'</td><td class="num">'+r.count+
+       '</td><td class="num">'+fmtSec(r.minMs)+'</td>'+
+       '<td class="num">'+fmtSec(r.totalMs/r.count)+'</td></tr>';
+  }
+  if(!any) h+='<tr><td colspan="4" class="muted">No problems yet.</td></tr>';
+  h+='</table>';
+  body.innerHTML=h;
+}
+
+function csvCell(v){
+  const s=String(v);
+  return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+}
+async function downloadCSV(){
+  const sessions=await Store.getSessions();
+  const sMap={}; sessions.forEach(s=>{sMap[s.sessionId]=s;});
+  const problems=(await Store.getProblems()).sort((a,b)=>a.timestamp-b.timestamp);
+  if(!problems.length){ toast('No data to export yet'); return; }
+  const head=['sessionId','sessionDate','presetName','operation','operand1','operand2',
+    'correctAnswer','userAnswer','wasCorrect','msToAnswer','problemTimestamp'];
+  const lines=[head.join(',')];
+  for(const p of problems){
+    const s=sMap[p.sessionId]||{};
+    lines.push([p.sessionId,s.endedAt||'',s.presetName||'',p.operation,
+      p.operand1,p.operand2,p.correctAnswer,p.userAnswer,p.wasCorrect,
+      p.msToAnswer,new Date(p.timestamp).toISOString()].map(csvCell).join(','));
+  }
+  const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='zetamac-'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+  toast('Exported '+problems.length+' rows');
+}
+
+/* ===================================================================
+   WIRING
+   =================================================================== */
+$('btn-start').addEventListener('click',startGame);
+$('btn-options').addEventListener('click',openOptionsMenu);
+$('btn-quit').addEventListener('click',quitGame);
+$('btn-settings').addEventListener('click',()=>{ syncSettings(); openSheet('sheet-settings'); });
+$('btn-bests').addEventListener('click',()=>{ openSheet('sheet-bests'); renderBests(); });
+$('btn-stats').addEventListener('click',()=>{ openSheet('sheet-stats'); renderStats(); });
+$('btn-csv').addEventListener('click',downloadCSV);
+$('stats-period').addEventListener('click',e=>{
+  const b=e.target.closest('[data-period]'); if(!b) return;
+  statsPeriod=b.dataset.period; renderStats();
+});
+window.addEventListener('resize',()=>{
+  if($('sheet-stats').classList.contains('open')) renderStats();
+});
+$('answer').addEventListener('input',onAnswerInput);
+$('res-toggle').addEventListener('click',()=>{
+  const d=$('res-details'); d.hidden=!d.hidden;
+  $('res-toggle').textContent=d.hidden?'Details ›':'Hide details';
+});
+$('backdrop').addEventListener('click',closeSheets);
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',closeSheets));
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheets(); });
+
+/* register the service worker so the app loads offline */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+
+/* init — restore the saved config, then render */
+async function init(){
+  try{
+    const saved=await Store.getConfig();
+    if(saved) config=saved;
+    else { loadPreset(DEFAULT_PRESET); await Store.saveConfig(config); }
+  }catch(err){
+    console.error('Storage unavailable',err);
+    toast('Storage unavailable — progress won’t be saved');
+  }
+  await renderHome();
+}
+init();
+</script>
+</body>
+</html>
