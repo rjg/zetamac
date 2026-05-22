@@ -1168,10 +1168,13 @@ window.addEventListener('resize',()=>{
   if($('sheet-stats').classList.contains('open')) renderStats();
 });
 $('answer').addEventListener('input',onAnswerInput);
-/* custom keypad drives the answer field (no iOS keyboard appears) */
-$('keypad').addEventListener('click',e=>{
+/* custom keypad drives the answer field (no iOS keyboard appears).
+   pointerdown (not click) for instant fire-on-touch; click would wait
+   for touchend and stumble on very fast successive taps. */
+$('keypad').addEventListener('pointerdown',e=>{
   if(!game||game.ended) return;
   const b=e.target.closest('button[data-k]'); if(!b) return;
+  e.preventDefault();   /* fire on touch down + skip the click that follows */
   const inp=$('answer'), k=b.dataset.k;
   inp.value = k==='del' ? inp.value.slice(0,-1) : inp.value + k;
   onAnswerInput();
