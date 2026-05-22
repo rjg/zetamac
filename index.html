@@ -282,7 +282,7 @@
     <div class="game-stat" id="game-time">Time: 120</div>
     <div class="game-stat" id="game-score">Score: 0</div>
     <div class="problem" id="game-problem">&nbsp;</div>
-    <input id="answer" inputmode="numeric" autocomplete="off" autocorrect="off"
+    <input id="answer" inputmode="tel" autocomplete="off" autocorrect="off"
            autocapitalize="off" spellcheck="false" placeholder="Answer">
   </div>
 </div>
@@ -586,6 +586,7 @@ function nextFromQueue(c){ if(queue.length<6) fillQueue(c); return queue.shift()
 /* ---------- router ---------- */
 function showScreen(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id==='screen-'+name));
+  fitGameScreen();
 }
 function openSheet(id){
   closeMenu();
@@ -1106,7 +1107,26 @@ $('stats-period').addEventListener('click',e=>{
   const b=e.target.closest('[data-period]'); if(!b) return;
   statsPeriod=b.dataset.period; renderStats();
 });
+/* iOS/Android keep the layout viewport at full height when the on-screen
+   keyboard opens — they overlay it rather than shrink it. Size the game
+   screen to the *visible* area instead, so the problem + answer field stay
+   centered above the keypad (matching a keyboard-aware native layout). */
+function fitGameScreen(){
+  const g=$('screen-game'), vv=window.visualViewport;
+  if(vv && g.classList.contains('active')){
+    g.style.height=vv.height+'px';
+    g.style.minHeight='0';
+  }else{
+    g.style.height='';
+    g.style.minHeight='';
+  }
+}
+if(window.visualViewport){
+  visualViewport.addEventListener('resize',fitGameScreen);
+  visualViewport.addEventListener('scroll',fitGameScreen);
+}
 window.addEventListener('resize',()=>{
+  fitGameScreen();
   if($('sheet-stats').classList.contains('open')) renderStats();
 });
 $('answer').addEventListener('input',onAnswerInput);
