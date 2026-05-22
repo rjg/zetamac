@@ -1082,10 +1082,17 @@ $('backdrop').addEventListener('click',closeSheets);
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',closeSheets));
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheets(); });
 
-/* register the service worker so the app loads offline */
+/* register the service worker; auto-reload once when a new version takes over */
 if('serviceWorker' in navigator){
+  const hadController=!!navigator.serviceWorker.controller;
+  let reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(reloaded||!hadController) return;   // skip the very first install claim
+    reloaded=true;
+    location.reload();
+  });
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
+    navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{});
   });
 }
 

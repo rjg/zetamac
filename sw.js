@@ -1,6 +1,14 @@
-/* Zetamac service worker — offline app shell.
-   Bump CACHE when any precached asset changes to force an update. */
-const CACHE = 'zetamac-v1';
+/* Zetamac service worker.
+
+   HTML / navigations  -> network-first: when online you always get the
+   freshest app; when offline you get the last cached copy. A `git push`
+   therefore goes live on the next online launch with NO cache-name bump.
+
+   Other assets (icons, manifest) -> cache-first: instant load, offline-safe.
+
+   You only need to bump CACHE below if you change THIS file's logic
+   (or an icon / the manifest). Normal app edits to index.html need nothing. */
+const CACHE = 'zetamac-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -9,6 +17,7 @@ const ASSETS = [
   './icons/icon-512.png',
   './icons/apple-touch-icon.png'
 ];
+const NET_TIMEOUT = 3500;   // ms before a slow launch falls back to cache
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -24,17 +33,45 @@ self.addEventListener('activate', e => {
   );
 });
 
-/* Cache-first: instant load + full offline. Same-origin GETs are cached as
-   they are fetched; navigations fall back to the cached shell when offline. */
+function isHTML(req) {
+  return req.mode === 'navigate' ||
+         (req.headers.get('accept') || '').includes('text/html');
+}
+
+/* network-first with a timeout, falling back to the cached app shell */
+async function htmlFirst(req) {
+  const net = fetch(req);
+  /* refresh the cached copy whenever the network eventually answers */
+  net.then(r => {
+    if (r && r.ok) caches.open(CACHE).then(c => c.put('./index.html', r.clone()));
+  }).catch(() => {});
+  try {
+    const r = await Promise.race([
+      net,
+      new Promise((_, rej) => setTimeout(rej, NET_TIMEOUT))
+    ]);
+    if (r && r.ok) return r;
+  } catch (e) { /* timed out or offline — fall through to the cache */ }
+  return (await caches.match('./index.html')) || (await caches.match(req)) || net;
+}
+
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
+  const req = e.request;
+  if (req.method !== 'GET') return;
+
+  if (isHTML(req)) {
+    e.respondWith(htmlFirst(req));
+    return;
+  }
+
+  /* cache-first for everything else */
   e.respondWith(
-    caches.match(e.request).then(hit => hit || fetch(e.request).then(resp => {
-      if (resp && resp.ok && new URL(e.request.url).origin === location.origin) {
+    caches.match(req).then(hit => hit || fetch(req).then(resp => {
+      if (resp && resp.ok && new URL(req.url).origin === location.origin) {
         const copy = resp.clone();
-        caches.open(CACHE).then(c => c.put(e.request, copy));
+        caches.open(CACHE).then(c => c.put(req, copy));
       }
       return resp;
-    }).catch(() => caches.match('./index.html')))
+    }))
   );
 });
