@@ -46,7 +46,8 @@
   .icon-btn{font-size:22px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;}
   .home-title{text-align:center;margin:-30px 0 2px;}
   .home-title .logo{font-size:30px;}
-  .home-sub{text-align:center;font-size:13px;color:var(--muted);margin-bottom:14px;}
+  .home-sub{text-align:center;font-size:13px;color:var(--muted);margin-bottom:2px;}
+  .app-version{text-align:center;font-size:11px;color:#c7c7cc;margin-bottom:14px;}
   .home-actions{display:flex;gap:12px;padding:0 16px 18px;}
   .big-btn{
     flex:1;padding:15px 8px;border-radius:14px;color:#fff;font-size:17px;font-weight:600;
@@ -238,6 +239,7 @@
   </div>
   <div class="home-title"><span class="logo">&#8484;<b>etamac</b></span></div>
   <div class="home-sub">Cloned from zetamac.com</div>
+  <div class="app-version" id="app-version"></div>
   <div class="home-actions">
     <button class="big-btn blue" id="btn-start">Start Game</button>
     <button class="big-btn purple" id="btn-options">Game Options</button>
@@ -387,6 +389,10 @@
 const PLUS='+', MINUS='−', TIMES='×', DIV='÷';
 const OP_ORDER=[PLUS,MINUS,TIMES,DIV];
 const OP_NAME={[PLUS]:'Addition',[MINUS]:'Subtraction',[TIMES]:'Multiplication',[DIV]:'Division'};
+
+/* Replaced by the deploy workflow with "build N · <sha>"; stays a placeholder
+   when run locally, so the home screen then shows "dev build". */
+const APP_VERSION='__BUILD__';
 
 /* ---------- IndexedDB storage ---------- */
 const DB_NAME='zetamac', DB_VERSION=1;
@@ -1095,6 +1101,9 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{});
   });
 }
+
+/* show the build version on the home screen */
+$('app-version').textContent=/^__/.test(APP_VERSION)?'dev build':APP_VERSION;
 
 /* init — restore the saved config, then render */
 async function init(){
