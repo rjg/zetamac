@@ -1173,30 +1173,50 @@ window.addEventListener('resize',()=>{
 });
 $('answer').addEventListener('input',onAnswerInput);
 /* custom keypad drives the answer field (no iOS keyboard appears).
-   touchstart (not pointerdown) so every new finger contact fires
-   independently — pointerdown on iOS can stall or coalesce when a
-   second finger lands while the first is still down. */
+   Coordinate-based hit detection (not t.target) sidesteps two iOS
+   quirks observed in multi-touch: (a) the 7px CSS grid gap creates
+   pixel-perfect dead zones where no button receives the touch, and
+   (b) the second touch's t.target can lag behind the actually-touched
+   element. We listen on document so a touch reaches us regardless of
+   which element iOS routes the event through. */
 function pressKey(k){
   const inp=$('answer');
   inp.value = k==='del' ? inp.value.slice(0,-1) : inp.value + k;
   onAnswerInput();
 }
-$('keypad').addEventListener('touchstart',e=>{
-  if(!game||game.ended) return;
-  /* preventDefault eagerly so iOS doesn't pause to consider gestures,
-     text selection, or callouts before delivering the next touchstart. */
-  e.preventDefault();
-  for(const t of e.changedTouches){
-    const b=t.target && t.target.closest && t.target.closest('button[data-k]');
-    if(b) pressKey(b.dataset.k);
+(function(){
+  const keypad=$('keypad');
+  const keys=[...keypad.querySelectorAll('button[data-k]')];
+  function buttonAt(x,y){
+    const kr=keypad.getBoundingClientRect();
+    if(x<kr.left||x>kr.right||y<kr.top||y>kr.bottom) return null;
+    let best=null, bestDist=Infinity;
+    for(const b of keys){
+      const r=b.getBoundingClientRect();
+      if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom) return b;
+      const cx=(r.left+r.right)/2, cy=(r.top+r.bottom)/2;
+      const d=Math.hypot(x-cx,y-cy);
+      if(d<bestDist){ bestDist=d; best=b; }
+    }
+    return best;   /* snap to nearest button if touch landed in a gap */
   }
-},{passive:false});
-$('keypad').addEventListener('mousedown',e=>{
-  if(!game||game.ended) return;
-  const b=e.target.closest('button[data-k]'); if(!b) return;
-  e.preventDefault();
-  pressKey(b.dataset.k);
-});
+  document.addEventListener('touchstart',e=>{
+    if(!game||game.ended) return;
+    let any=false;
+    for(const t of e.changedTouches){
+      const b=buttonAt(t.clientX,t.clientY);
+      if(b){ pressKey(b.dataset.k); any=true; }
+    }
+    if(any) e.preventDefault();
+  },{passive:false});
+  document.addEventListener('mousedown',e=>{
+    if(!game||game.ended) return;
+    const b=buttonAt(e.clientX,e.clientY);
+    if(!b) return;
+    e.preventDefault();
+    pressKey(b.dataset.k);
+  });
+})();
 /* still accept physical keyboard input (desktop, iPad+keyboard) */
 document.addEventListener('keydown',e=>{
   if(!game||game.ended) return;
