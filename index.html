@@ -1169,15 +1169,28 @@ window.addEventListener('resize',()=>{
 });
 $('answer').addEventListener('input',onAnswerInput);
 /* custom keypad drives the answer field (no iOS keyboard appears).
-   pointerdown (not click) for instant fire-on-touch; click would wait
-   for touchend and stumble on very fast successive taps. */
-$('keypad').addEventListener('pointerdown',e=>{
-  if(!game||game.ended) return;
-  const b=e.target.closest('button[data-k]'); if(!b) return;
-  e.preventDefault();   /* fire on touch down + skip the click that follows */
-  const inp=$('answer'), k=b.dataset.k;
+   touchstart (not pointerdown) so every new finger contact fires
+   independently — pointerdown on iOS can stall or coalesce when a
+   second finger lands while the first is still down. */
+function pressKey(k){
+  const inp=$('answer');
   inp.value = k==='del' ? inp.value.slice(0,-1) : inp.value + k;
   onAnswerInput();
+}
+$('keypad').addEventListener('touchstart',e=>{
+  if(!game||game.ended) return;
+  let any=false;
+  for(const t of e.changedTouches){
+    const b=t.target && t.target.closest && t.target.closest('button[data-k]');
+    if(b){ pressKey(b.dataset.k); any=true; }
+  }
+  if(any) e.preventDefault();   /* suppress the synthetic mousedown/click */
+},{passive:false});
+$('keypad').addEventListener('mousedown',e=>{
+  if(!game||game.ended) return;
+  const b=e.target.closest('button[data-k]'); if(!b) return;
+  e.preventDefault();
+  pressKey(b.dataset.k);
 });
 /* still accept physical keyboard input (desktop, iPad+keyboard) */
 document.addEventListener('keydown',e=>{
