@@ -107,31 +107,7 @@
     width:170px;padding:13px;font-size:20px;text-align:center;
     border:1px solid var(--line);border-radius:12px;outline:none;
     background:#fff;color:var(--ink);touch-action:manipulation;
-    /* answer is display-only; the custom .keypad below drives it */
-    caret-color:transparent;
   }
-  /* in-document number pad — replaces the native iOS keyboard so there's
-     no system accessory bar / +*# button cluttering the screen. */
-  .keypad{
-    display:grid;grid-template-columns:repeat(3,1fr);gap:7px;
-    padding:8px 6px calc(env(safe-area-inset-bottom) + 8px);
-    background:#d1d5dc;user-select:none;
-    /* touch-action:none disables iOS's gesture detection (pinch/pan) so
-       a second finger doesn't get held briefly while the browser sniffs
-       for a gesture — events fire the instant the finger lands. */
-    touch-action:none;-webkit-touch-callout:none;
-  }
-  .keypad button{
-    background:#fff;border:none;border-radius:7px;padding:14px 0;
-    font-size:28px;font-weight:400;color:#000;
-    touch-action:none;
-    box-shadow:0 1px 0 rgba(0,0,0,.18);
-    display:flex;align-items:center;justify-content:center;
-  }
-  .keypad button:active{background:#aab0bc;}
-  .keypad .ghost{visibility:hidden;pointer-events:none;box-shadow:none;}
-  .keypad .del{background:transparent;box-shadow:none;font-size:24px;}
-  .keypad .del:active{background:rgba(0,0,0,.08);}
   #answer::placeholder{color:#c7c7cc;}
 
   /* ---------- sheets ---------- */
@@ -310,22 +286,8 @@
     <div class="game-stat" id="game-time">Time: 120</div>
     <div class="game-stat" id="game-score">Score: 0</div>
     <div class="problem" id="game-problem">&nbsp;</div>
-    <input id="answer" readonly inputmode="none" autocomplete="off" autocorrect="off"
+    <input id="answer" inputmode="numeric" autocomplete="off" autocorrect="off"
            autocapitalize="off" spellcheck="false" placeholder="Answer">
-  </div>
-  <div class="keypad" id="keypad">
-    <button data-k="1">1</button>
-    <button data-k="2">2</button>
-    <button data-k="3">3</button>
-    <button data-k="4">4</button>
-    <button data-k="5">5</button>
-    <button data-k="6">6</button>
-    <button data-k="7">7</button>
-    <button data-k="8">8</button>
-    <button data-k="9">9</button>
-    <button class="ghost" tabindex="-1" aria-hidden="true"></button>
-    <button data-k="0">0</button>
-    <button class="del" data-k="del" aria-label="Delete">⌫</button>
   </div>
 </div>
 
@@ -664,6 +626,7 @@ function startGame(){
   $('game-time').textContent='Time: '+cfg.durationSec;
   $('answer').value='';
   showScreen('game');
+  $('answer').focus();   /* bring up the native iOS numeric keyboard */
   game.timer=setInterval(tick,100);
 }
 
@@ -1151,7 +1114,7 @@ $('stats-period').addEventListener('click',e=>{
 /* iOS/Android keep the layout viewport at full height when the on-screen
    keyboard opens — they overlay it rather than shrink it. Size the game
    screen to the *visible* area instead, so the problem + answer field stay
-   centered above the keypad (matching a keyboard-aware native layout). */
+   centered above the on-screen keyboard. */
 function fitGameScreen(){
   const g=$('screen-game'), vv=window.visualViewport;
   if(vv && g.classList.contains('active')){
@@ -1172,58 +1135,6 @@ window.addEventListener('resize',()=>{
   if($('sheet-stats').classList.contains('open')) renderStats();
 });
 $('answer').addEventListener('input',onAnswerInput);
-/* custom keypad drives the answer field (no iOS keyboard appears).
-   Coordinate-based hit detection (not t.target) sidesteps two iOS
-   quirks observed in multi-touch: (a) the 7px CSS grid gap creates
-   pixel-perfect dead zones where no button receives the touch, and
-   (b) the second touch's t.target can lag behind the actually-touched
-   element. We listen on document so a touch reaches us regardless of
-   which element iOS routes the event through. */
-function pressKey(k){
-  const inp=$('answer');
-  inp.value = k==='del' ? inp.value.slice(0,-1) : inp.value + k;
-  onAnswerInput();
-}
-(function(){
-  const keypad=$('keypad');
-  const keys=[...keypad.querySelectorAll('button[data-k]')];
-  function buttonAt(x,y){
-    const kr=keypad.getBoundingClientRect();
-    if(x<kr.left||x>kr.right||y<kr.top||y>kr.bottom) return null;
-    let best=null, bestDist=Infinity;
-    for(const b of keys){
-      const r=b.getBoundingClientRect();
-      if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom) return b;
-      const cx=(r.left+r.right)/2, cy=(r.top+r.bottom)/2;
-      const d=Math.hypot(x-cx,y-cy);
-      if(d<bestDist){ bestDist=d; best=b; }
-    }
-    return best;   /* snap to nearest button if touch landed in a gap */
-  }
-  document.addEventListener('touchstart',e=>{
-    if(!game||game.ended) return;
-    let any=false;
-    for(const t of e.changedTouches){
-      const b=buttonAt(t.clientX,t.clientY);
-      if(b){ pressKey(b.dataset.k); any=true; }
-    }
-    if(any) e.preventDefault();
-  },{passive:false});
-  document.addEventListener('mousedown',e=>{
-    if(!game||game.ended) return;
-    const b=buttonAt(e.clientX,e.clientY);
-    if(!b) return;
-    e.preventDefault();
-    pressKey(b.dataset.k);
-  });
-})();
-/* still accept physical keyboard input (desktop, iPad+keyboard) */
-document.addEventListener('keydown',e=>{
-  if(!game||game.ended) return;
-  const inp=$('answer');
-  if(e.key>='0'&&e.key<='9'){ inp.value+=e.key; onAnswerInput(); }
-  else if(e.key==='Backspace'){ inp.value=inp.value.slice(0,-1); onAnswerInput(); }
-});
 $('res-toggle').addEventListener('click',()=>{
   const d=$('res-details'); d.hidden=!d.hidden;
   $('res-toggle').textContent=d.hidden?'Details ›':'Hide details';
