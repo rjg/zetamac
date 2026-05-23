@@ -116,11 +116,15 @@
     display:grid;grid-template-columns:repeat(3,1fr);gap:7px;
     padding:8px 6px calc(env(safe-area-inset-bottom) + 8px);
     background:#d1d5dc;user-select:none;
+    /* touch-action:none disables iOS's gesture detection (pinch/pan) so
+       a second finger doesn't get held briefly while the browser sniffs
+       for a gesture — events fire the instant the finger lands. */
+    touch-action:none;-webkit-touch-callout:none;
   }
   .keypad button{
     background:#fff;border:none;border-radius:7px;padding:14px 0;
     font-size:28px;font-weight:400;color:#000;
-    touch-action:manipulation;
+    touch-action:none;
     box-shadow:0 1px 0 rgba(0,0,0,.18);
     display:flex;align-items:center;justify-content:center;
   }
@@ -1179,12 +1183,13 @@ function pressKey(k){
 }
 $('keypad').addEventListener('touchstart',e=>{
   if(!game||game.ended) return;
-  let any=false;
+  /* preventDefault eagerly so iOS doesn't pause to consider gestures,
+     text selection, or callouts before delivering the next touchstart. */
+  e.preventDefault();
   for(const t of e.changedTouches){
     const b=t.target && t.target.closest && t.target.closest('button[data-k]');
-    if(b){ pressKey(b.dataset.k); any=true; }
+    if(b) pressKey(b.dataset.k);
   }
-  if(any) e.preventDefault();   /* suppress the synthetic mousedown/click */
 },{passive:false});
 $('keypad').addEventListener('mousedown',e=>{
   if(!game||game.ended) return;
