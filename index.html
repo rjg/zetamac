@@ -1118,11 +1118,15 @@ $('stats-period').addEventListener('click',e=>{
 function fitGameScreen(){
   const g=$('screen-game'), vv=window.visualViewport;
   if(vv && g.classList.contains('active')){
-    /* push the pinned game-screen's bottom up by the on-screen
-       keyboard's height so the visible area = above the keyboard */
-    const kb=Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-    g.style.bottom=kb+'px';
+    /* iOS may scroll the visual viewport down to keep the focused input
+       in view when the keyboard opens; position:fixed stays anchored to
+       the layout viewport, so the top of the game screen ends up above
+       the visible area. Match the game screen to the visual viewport
+       on both ends so the logo/close button stay onscreen. */
+    g.style.top=vv.offsetTop+'px';
+    g.style.bottom=Math.max(0, window.innerHeight - vv.offsetTop - vv.height)+'px';
   }else{
+    g.style.top='';
     g.style.bottom='';
   }
 }
