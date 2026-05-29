@@ -578,6 +578,17 @@ function opsLabel(sig){return sig?sig.split('+').map(k=>OPS_SYM[k]).join(' '):'M
    when run locally, so the home screen then shows "dev build". */
 const APP_VERSION='__BUILD__';
 
+/* app-logic.js must load first and define the global Z. If it didn't (a bad
+   deploy, an offline cache miss), fail loudly instead of throwing on the
+   destructure below and leaving a silently frozen, blank screen. */
+if(typeof Z==='undefined'){
+  document.body.innerHTML='<div style="padding:48px 24px;text-align:center;'+
+    'font:16px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;color:#1c1c1e">'+
+    '<p>Couldn’t load the app code.</p>'+
+    '<p style="color:#8e8e93;font-size:14px">Please close and reopen the app.</p></div>';
+  throw new Error('app-logic.js failed to load (Z is undefined)');
+}
+
 /* Pure logic shared with the unit tests — see app-logic.js. The DOM /
    IndexedDB glue below calls into these; tests exercise them directly. */
 const { dayKey, parseKey, addDays, canonFact, factKey, answerFor,
