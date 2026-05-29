@@ -219,6 +219,9 @@
   .seg{display:flex;background:#e5e5ea;border-radius:9px;padding:2px;margin:6px 0 4px;}
   .seg button{flex:1;padding:6px 2px;border-radius:7px;font-size:13px;font-weight:600;color:#3a3a3c;}
   .seg button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.18);}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px;}
+  .chips button{padding:5px 11px;border-radius:14px;font-size:13px;font-weight:600;background:#e5e5ea;color:#3a3a3c;letter-spacing:.04em;}
+  .chips button.on{background:#007aff;color:#fff;}
   .stat-row{display:flex;justify-content:space-between;padding:9px 2px;border-bottom:1px solid var(--line);font-size:15px;}
   .stat-val{font-weight:600;}
   .csv-btn{
@@ -388,7 +391,8 @@
     <div class="muted" id="stats-range" style="font-size:13px;">&nbsp;</div>
     <canvas id="stats-chart"></canvas>
     <div class="seg" id="stats-period"></div>
-    <h3>By operation &mdash; all sessions</h3>
+    <div class="chips" id="stats-ops"></div>
+    <h3 id="stats-optable-title">By operation &mdash; all ops</h3>
     <table class="op-table" id="stats-optable"></table>
     <div class="muted" id="stats-summary" style="font-size:13px;margin-top:10px;"></div>
     <button class="csv-btn" id="btn-csv">
@@ -423,6 +427,11 @@
 const PLUS='+', MINUS='−', TIMES='×', DIV='÷';
 const OP_ORDER=[PLUS,MINUS,TIMES,DIV];
 const OP_NAME={[PLUS]:'Addition',[MINUS]:'Subtraction',[TIMES]:'Multiplication',[DIV]:'Division'};
+/* config.ops keys → display symbols, for the stats operation-combination pivot */
+const OPS_KEYS=['add','sub','mul','div'];
+const OPS_SYM={add:'+',sub:'−',mul:'×',div:'÷'};
+function opsSig(c){return c&&c.ops?OPS_KEYS.filter(k=>c.ops[k]).join('+'):'';}
+function opsLabel(sig){return sig?sig.split('+').map(k=>OPS_SYM[k]).join(' '):'Mixed';}
 
 /* Replaced by the deploy workflow with "build N · <sha>"; stays a placeholder
    when run locally, so the home screen then shows "dev build". */
@@ -1019,6 +1028,7 @@ $('options-menu').addEventListener('click',e=>{
    =================================================================== */
 const PERIOD_DAYS={D:1,W:7,M:30,'6M':182,Y:365,All:Infinity};
 let statsPeriod='All';
+let statsOps=null; // null = all combos; otherwise an opsSig string (may be '' for Mixed)
 
 function drawChart(sessions){
   const cv=$('stats-chart');
@@ -1069,21 +1079,38 @@ function drawChart(sessions){
 async function renderStats(){
   const sessions=(await Store.getSessions())
     .sort((a,b)=>new Date(a.endedAt)-new Date(b.endedAt));
+  const problems=await Store.getProblems();
   $('stats-period').innerHTML=Object.keys(PERIOD_DAYS).map(p=>
     '<button class="'+(p===statsPeriod?'on':'')+'" data-period="'+p+'">'+p+'</button>').join('');
+  // operation-combination pivot: one chip per distinct set of ops played, most-used first
+  const sigCount={};
+  for(const s of sessions){const sig=opsSig(s.config); sigCount[sig]=(sigCount[sig]||0)+1;}
+  if(statsOps!==null && !sigCount[statsOps]) statsOps=null; // combo no longer present
+  const sigs=Object.keys(sigCount).sort((a,b)=>sigCount[b]-sigCount[a]);
+  $('stats-ops').innerHTML=
+    '<button class="'+(statsOps===null?'on':'')+'" data-ops="*ALL*">All ops</button>'+
+    sigs.map(sig=>'<button class="'+(statsOps===sig?'on':'')+'" data-ops="'+sig+'">'+
+      opsLabel(sig)+'</button>').join('');
+  // filter sessions by period AND selected combo
   const cutoff=statsPeriod==='All'?0:Date.now()-PERIOD_DAYS[statsPeriod]*86400000;
-  const inPeriod=sessions.filter(s=>new Date(s.endedAt).getTime()>=cutoff);
-  if(inPeriod.length){
+  const inView=sessions.filter(s=>
+    new Date(s.endedAt).getTime()>=cutoff &&
+    (statsOps===null||opsSig(s.config)===statsOps));
+  if(inView.length){
     const f=d=>new Date(d).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-    const a=f(inPeriod[0].endedAt), b=f(inPeriod[inPeriod.length-1].endedAt);
+    const a=f(inView[0].endedAt), b=f(inView[inView.length-1].endedAt);
     $('stats-range').textContent=a===b?a:a+' – '+b;
   }else $('stats-range').textContent='No games in this period';
-  drawChart(inPeriod);
-  const problems=await Store.getProblems();
-  renderOpTable($('stats-optable'),opStats(problems));
+  drawChart(inView);
+  const ids=new Set(inView.map(s=>s.sessionId));
+  const inProblems=problems.filter(p=>ids.has(p.sessionId));
+  $('stats-optable-title').textContent=
+    'By operation — '+(statsOps===null?'all ops':opsLabel(statsOps));
+  renderOpTable($('stats-optable'),opStats(inProblems));
+  const allView=statsPeriod==='All'&&statsOps===null;
   $('stats-summary').textContent=
-    sessions.length+' game'+(sessions.length===1?'':'s')+' • '+
-    problems.length+' problems answered all-time';
+    inView.length+' game'+(inView.length===1?'':'s')+' • '+
+    inProblems.length+' problems'+(allView?' answered all-time':' in this view');
 }
 
 function statRow(label,val){
@@ -1157,11 +1184,10 @@ async function downloadCSV(){
     'correctAnswer','userAnswer','wasCorrect','msToAnswer','problemTimestamp'];
   const lines=[head.join(',')];
   const rng=r=>r?r.min1+'-'+r.max1+';'+r.min2+'-'+r.max2:'';
-  const opsStr=c=>!c||!c.ops?'':['add','sub','mul','div'].filter(k=>c.ops[k]).join('+');
   for(const p of problems){
     const s=sMap[p.sessionId]||{}, c=s.config;
     lines.push([p.sessionId,s.endedAt||'',s.presetName||'',
-      opsStr(c),rng(c&&c.add),rng(c&&c.mul),(c&&c.durationSec)||s.durationSec||'',
+      opsSig(c),rng(c&&c.add),rng(c&&c.mul),(c&&c.durationSec)||s.durationSec||'',
       p.operation,p.operand1,p.operand2,p.correctAnswer,p.userAnswer,p.wasCorrect,
       p.msToAnswer,new Date(p.timestamp).toISOString()].map(csvCell).join(','));
   }
@@ -1188,6 +1214,10 @@ $('btn-csv').addEventListener('click',downloadCSV);
 $('stats-period').addEventListener('click',e=>{
   const b=e.target.closest('[data-period]'); if(!b) return;
   statsPeriod=b.dataset.period; renderStats();
+});
+$('stats-ops').addEventListener('click',e=>{
+  const b=e.target.closest('[data-ops]'); if(!b) return;
+  statsOps=b.dataset.ops==='*ALL*'?null:b.dataset.ops; renderStats();
 });
 /* iOS/Android keep the layout viewport at full height when the on-screen
    keyboard opens — they overlay it rather than shrink it. Size the game
