@@ -1,0 +1,238 @@
+/* =====================================================================
+   Zetamac — pure logic (no DOM, no IndexedDB).
+
+   Lives in its own file so it can be unit-tested under `node --test`
+   while also loading as a browser global. index.html pulls the names it
+   needs off the global `Z` object; tests `require('./app-logic.js')`.
+
+   Everything here is a pure function of its arguments — in particular
+   the streak/freeze functions take an explicit `today` Date so tests are
+   deterministic (no hidden `new Date()`).
+   ===================================================================== */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module !== 'undefined' && module.exports) module.exports = api; // node
+  else root.Z = api;                                                         // browser
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const PLUS = '+', MINUS = '−', TIMES = '×', DIV = '÷';
+
+  /* ---- gamification constants ---- */
+  const DAILY_GOAL = 5;     // completed games per local day to "meet" the day
+  const FREEZE_COST = 500;  // XP to buy one streak freeze
+  const MAX_FREEZES = 2;    // most you can hold at once
+
+  /* ---- dates (local-time day keys) ---- */
+  function dayKey(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+           '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function parseKey(k) { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); }
+  function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+
+  /* ---- facts (commutative folding for +,×) ---- */
+  function answerFor(op, o1, o2) {
+    if (op === PLUS) return o1 + o2;
+    if (op === MINUS) return o1 - o2;
+    if (op === TIMES) return o1 * o2;
+    return o1 / o2;
+  }
+  function canonFact(op, o1, o2) {
+    if (op === PLUS || op === TIMES)
+      return { operation: op, operand1: Math.min(o1, o2), operand2: Math.max(o1, o2) };
+    return { operation: op, operand1: o1, operand2: o2 };
+  }
+  function factKey(p) {
+    const c = canonFact(p.operation, p.operand1, p.operand2);
+    return c.operation + ':' + c.operand1 + ':' + c.operand2;
+  }
+
+  /* ---- streak ---- */
+  /* date string -> count of completed games that local day */
+  function dayCounts(sessions) {
+    const m = {};
+    for (const s of sessions) { const k = dayKey(new Date(s.endedAt)); m[k] = (m[k] || 0) + 1; }
+    return m;
+  }
+  /* a day "counts" toward the streak if the goal was met OR a freeze covers it */
+  function daySatisfied(counts, freezeDays, key, goal) {
+    return (counts[key] || 0) >= goal || !!(freezeDays && freezeDays[key]);
+  }
+  /* consecutive satisfied days ending today; today-in-progress doesn't break
+     the run — we start the walk from yesterday when today isn't met yet */
+  function currentStreak(counts, freezeDays, goal, today) {
+    let d = new Date(today);
+    if (!daySatisfied(counts, freezeDays, dayKey(d), goal)) d = addDays(d, -1);
+    let n = 0;
+    while (daySatisfied(counts, freezeDays, dayKey(d), goal)) { n++; d = addDays(d, -1); }
+    return n;
+  }
+  /* longest run of consecutive satisfied days, ever */
+  function bestStreak(counts, freezeDays, goal) {
+    const set = new Set();
+    for (const k in counts) if (counts[k] >= goal) set.add(k);
+    if (freezeDays) for (const k in freezeDays) if (freezeDays[k]) set.add(k);
+    const days = [...set].sort();
+    let best = 0, run = 0, prev = null;
+    for (const k of days) {
+      run = (prev && dayKey(addDays(parseKey(prev), 1)) === k) ? run + 1 : 1;
+      if (run > best) best = run;
+      prev = k;
+    }
+    return best;
+  }
+
+  /* ---- streak freeze auto-consume ----
+     Walk back from yesterday spending owned freezes to bridge missed days,
+     but ONLY when the gap reconnects to an earlier satisfied day (so we never
+     waste a freeze on an unbridgeable gap or on pre-history days). Mutates
+     `progress` (freezes, freezeDays); returns the number of freezes spent. */
+  function reconcileFreezes(counts, progress, today, goal) {
+    goal = goal || DAILY_GOAL;
+    progress.freezeDays = progress.freezeDays || {};
+    // earliest satisfied day — past it there's nothing to bridge back to
+    let earliest = null;
+    const consider = k => { if (earliest === null || k < earliest) earliest = k; };
+    for (const k in counts) if (counts[k] >= goal) consider(k);
+    for (const k in progress.freezeDays) if (progress.freezeDays[k]) consider(k);
+    if (earliest === null) return 0; // no streak exists at all
+
+    let d = addDays(today, -1);   // never freeze today (still in progress)
+    let avail = progress.freezes || 0;
+    let pending = [];             // missed days awaiting a reconnect
+    let spent = 0;
+    while (true) {
+      const k = dayKey(d);
+      if (k < earliest) break;    // nothing earlier to connect to
+      if (daySatisfied(counts, progress.freezeDays, k, goal)) {
+        for (const pk of pending) { progress.freezeDays[pk] = true; spent++; } // commit bridge
+        pending = [];
+        d = addDays(d, -1);
+        continue;
+      }
+      if (avail > 0) { pending.push(k); avail--; d = addDays(d, -1); continue; } // tentatively cover
+      break;                      // out of freezes mid-gap — streak breaks here
+    }
+    // pending left uncommitted = gap that never reconnected -> discard (no waste)
+    progress.freezes -= spent;
+    return spent;
+  }
+
+  /* ---- progress / XP ---- */
+  function defaultProgress() {
+    return { xp: 0, xpLifetime: 0, freezes: 0, freezeDays: {}, v: 1 };
+  }
+  /* normalize a loaded record so older/partial shapes don't crash callers */
+  function normalizeProgress(p) {
+    const d = defaultProgress();
+    if (!p || typeof p !== 'object') return d;
+    return {
+      xp: Math.max(0, p.xp | 0),
+      xpLifetime: Math.max(0, p.xpLifetime | 0),
+      freezes: Math.max(0, Math.min(MAX_FREEZES, p.freezes | 0)),
+      freezeDays: (p.freezeDays && typeof p.freezeDays === 'object') ? p.freezeDays : {},
+      v: 1,
+    };
+  }
+  function xpForSession(session) { return Math.max(0, (session && session.score) | 0); }
+  function awardXp(progress, amount) {
+    amount = Math.max(0, amount | 0);
+    progress.xp += amount; progress.xpLifetime += amount;
+    return amount;
+  }
+  function canBuyFreeze(progress) {
+    return progress.xp >= FREEZE_COST && progress.freezes < MAX_FREEZES;
+  }
+  /* spend XP for a freeze; returns true on success, false if not allowed */
+  function buyFreeze(progress) {
+    if (!canBuyFreeze(progress)) return false;
+    progress.xp -= FREEZE_COST; progress.freezes++;
+    return true;
+  }
+
+  /* ---- ghost (steady pace = your best rate for this preset) ---- */
+  function pickGhost(sessions, presetName) {
+    let best = null;
+    for (const s of sessions) {
+      if (s.presetName !== presetName) continue;
+      if (!(s.rate > 0)) continue;
+      if (!best || s.rate > best.rate) best = s;
+    }
+    return best ? { rate: best.rate, score: best.score, sessionId: best.sessionId } : null;
+  }
+  function ghostScoreAt(rate, elapsedMs) {
+    if (!(rate > 0) || !(elapsedMs > 0)) return 0;
+    return Math.floor(rate * (elapsedMs / 1000));
+  }
+
+  /* ---- mastery grids ----
+     Map every problem onto one of two fluency fact-families viewed per op:
+       ×  : the two factors            (operand1, operand2)
+       ÷  : divisor & quotient         (operand2, answer)
+       +  : the two addends            (operand1, operand2)
+       −  : subtrahend & difference    (operand2, answer)
+     Cells are folded commutatively (min,max) within a maxN×maxN grid. */
+  function gridFactors(p) {
+    switch (p.operation) {
+      case TIMES: return [p.operand1, p.operand2];
+      case DIV:   return [p.operand2, p.correctAnswer];
+      case PLUS:  return [p.operand1, p.operand2];
+      case MINUS: return [p.operand2, p.correctAnswer];
+      default:    return null;
+    }
+  }
+  /* median of all correct answer times — the speed yardstick for cell levels */
+  function masteryBaseline(problems) {
+    const ok = problems.filter(p => p.wasCorrect).map(p => p.msToAnswer).sort((a, b) => a - b);
+    return ok.length ? ok[Math.floor(ok.length / 2)] : 0;
+  }
+  /* 0 unseen · 1 weak · 2 ok · 3 strong */
+  function cellLevel(cell, baseline) {
+    if (!cell || cell.count === 0) return 0;
+    const accuracy = cell.correct / cell.count;
+    const avgMs = cell.correct ? cell.totalMs / cell.correct : Infinity;
+    if (accuracy < 0.7) return 1;
+    if (baseline && avgMs > 2 * baseline) return 1;
+    if (accuracy >= 0.9 && (!baseline || avgMs <= 1.3 * baseline)) return 3;
+    return 2;
+  }
+  /* returns { op, maxN, baseline, cells } where cells[i][j] (1-indexed via
+     i-1,j-1) is {count,correct,totalMs,avgMs,accuracy,level} or null */
+  function masteryGrid(problems, op, maxN, baseline) {
+    maxN = maxN || 12;
+    if (baseline == null) baseline = masteryBaseline(problems);
+    const cells = Array.from({ length: maxN }, () => Array(maxN).fill(null));
+    for (const p of problems) {
+      if (p.operation !== op) continue;
+      const f = gridFactors(p);
+      if (!f) continue;
+      let [a, b] = f;
+      if (a > b) { const t = a; a = b; b = t; }
+      if (a < 1 || b < 1 || a > maxN || b > maxN) continue;
+      let c = cells[a - 1][b - 1];
+      if (!c) c = cells[a - 1][b - 1] = { count: 0, correct: 0, totalMs: 0 };
+      c.count++;
+      if (p.wasCorrect) { c.correct++; c.totalMs += p.msToAnswer; }
+    }
+    for (let i = 0; i < maxN; i++) for (let j = 0; j < maxN; j++) {
+      const c = cells[i][j];
+      if (!c) continue;
+      c.avgMs = c.correct ? c.totalMs / c.correct : Infinity;
+      c.accuracy = c.correct / c.count;
+      c.level = cellLevel(c, baseline);
+    }
+    return { op, maxN, baseline, cells };
+  }
+
+  return {
+    PLUS, MINUS, TIMES, DIV,
+    DAILY_GOAL, FREEZE_COST, MAX_FREEZES,
+    dayKey, parseKey, addDays,
+    answerFor, canonFact, factKey,
+    dayCounts, daySatisfied, currentStreak, bestStreak, reconcileFreezes,
+    defaultProgress, normalizeProgress, xpForSession, awardXp, canBuyFreeze, buyFreeze,
+    pickGhost, ghostScoreAt,
+    gridFactors, masteryBaseline, cellLevel, masteryGrid,
+  };
+});

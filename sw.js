@@ -7,11 +7,13 @@
    Other assets (icons, manifest) -> cache-first: instant load, offline-safe.
 
    You only need to bump CACHE below if you change THIS file's logic
-   (or an icon / the manifest). Normal app edits to index.html need nothing. */
-const CACHE = 'zetamac-v2';
+   (or an icon / the manifest). Normal app edits to index.html / app-logic.js
+   need nothing — both are served network-first. */
+const CACHE = 'zetamac-v3';
 const ASSETS = [
   './',
   './index.html',
+  './app-logic.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -37,13 +39,19 @@ function isHTML(req) {
   return req.mode === 'navigate' ||
          (req.headers.get('accept') || '').includes('text/html');
 }
+/* app-logic.js carries the same fast-changing app code as index.html, so it
+   gets the same network-first treatment (no cache bump needed on edits) */
+function isAppScript(req) {
+  return new URL(req.url).pathname.endsWith('/app-logic.js');
+}
 
-/* network-first with a timeout, falling back to the cached app shell */
-async function htmlFirst(req) {
+/* network-first with a timeout, falling back to a cached copy.
+   `key` is the cache entry to refresh and fall back to. */
+async function netFirst(req, key) {
   const net = fetch(req);
   /* refresh the cached copy whenever the network eventually answers */
   net.then(r => {
-    if (r && r.ok) caches.open(CACHE).then(c => c.put('./index.html', r.clone()));
+    if (r && r.ok) caches.open(CACHE).then(c => c.put(key, r.clone()));
   }).catch(() => {});
   try {
     const r = await Promise.race([
@@ -52,7 +60,7 @@ async function htmlFirst(req) {
     ]);
     if (r && r.ok) return r;
   } catch (e) { /* timed out or offline — fall through to the cache */ }
-  return (await caches.match('./index.html')) || (await caches.match(req)) || net;
+  return (await caches.match(key)) || (await caches.match(req)) || net;
 }
 
 self.addEventListener('fetch', e => {
@@ -60,7 +68,11 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
 
   if (isHTML(req)) {
-    e.respondWith(htmlFirst(req));
+    e.respondWith(netFirst(req, './index.html'));
+    return;
+  }
+  if (isAppScript(req)) {
+    e.respondWith(netFirst(req, './app-logic.js'));
     return;
   }
 

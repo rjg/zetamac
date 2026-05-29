@@ -1,0 +1,9 @@
+{
+  "name": "zetamac",
+  "version": "1.0.0",
+  "description": "Zetamac mental-math PWA — pure logic is unit-tested with node:test (no dependencies).",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

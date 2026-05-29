@@ -268,6 +268,91 @@
     opacity:0;transition:.25s;z-index:90;pointer-events:none;
   }
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  /* ---------- gamification ---------- */
+  .home-top-right{display:flex;align-items:center;gap:2px;}
+
+  /* streak: danger banner */
+  .streak-risk{
+    display:flex;align-items:center;gap:8px;margin-top:11px;padding:9px 11px;
+    border-radius:10px;background:#fff1e6;color:#c2410c;font-size:13px;line-height:1.3;
+  }
+  .streak-risk .risk-ico{display:inline-flex;color:var(--orange);flex:0 0 auto;}
+  .streak-risk .risk-ico svg{width:18px;height:18px;}
+
+  /* frozen day in the week strip */
+  .sd-dot.frozen{background:#e1f3ff;color:#34a7e0;}
+  .sd-dot.frozen svg{width:14px;height:14px;}
+
+  /* today: goal ring + freeze shop */
+  .ring{flex:0 0 auto;}
+  .ring-bg{fill:none;stroke:#e5e5ea;stroke-width:5;}
+  .ring-fg{
+    fill:none;stroke:var(--blue);stroke-width:5;stroke-linecap:round;
+    transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .45s ease;
+  }
+  .ring.done .ring-fg{stroke:var(--green);}
+  .ring-txt{
+    fill:var(--ink);font-size:13px;font-weight:700;text-anchor:middle;
+    dominant-baseline:middle;font-variant-numeric:tabular-nums;
+  }
+  .ring.done .ring-txt{fill:var(--green);font-size:20px;}
+  .today-meta{display:flex;flex-direction:column;gap:2px;}
+  .today-lbl{font-size:13.5px;color:var(--muted);}
+  .frz{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
+  .frz-have{display:inline-flex;color:#34a7e0;}
+  .frz-have svg{margin-left:-3px;}
+  .frz-buy{
+    background:var(--blue);color:#fff;font-size:12px;font-weight:600;
+    padding:6px 10px;border-radius:9px;white-space:nowrap;
+  }
+  .frz-buy.off{background:#e5e5ea;color:#aeaeb2;}
+  .frz-buy:active{filter:brightness(.92);}
+
+  /* XP row */
+  .xp-row{
+    display:flex;align-items:baseline;gap:8px;margin-top:12px;padding-top:11px;
+    border-top:1px solid var(--line);
+  }
+  .xp-lab{font-size:12px;font-weight:700;color:var(--orange);letter-spacing:.05em;}
+  .xp-val{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;}
+  .xp-sub{font-size:12px;color:var(--muted);margin-left:auto;}
+
+  /* in-game ghost readout */
+  .game-ghost{
+    display:flex;align-items:center;gap:6px;font-size:15px;font-weight:600;color:var(--muted);
+    min-height:19px;
+  }
+  .game-ghost.ahead{color:var(--green);}
+  .game-ghost.behind{color:var(--orange);}
+  .game-ghost svg{opacity:.85;}
+
+  /* results: XP + ghost outcome */
+  #res-extra{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px;}
+  .res-xp{background:#fff4e0;color:#c2410c;font-weight:700;font-size:14px;padding:6px 12px;border-radius:10px;}
+  .res-ghost{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;padding:6px 12px;border-radius:10px;}
+  .res-ghost.win{background:#e7f8ec;color:#1a7f37;}
+  .res-ghost.lose{background:#ffefe9;color:#c2410c;}
+  .res-ghost em{font-style:normal;color:var(--muted);font-weight:500;}
+
+  /* goal celebration */
+  .confetti{position:fixed;inset:0;pointer-events:none;z-index:100;}
+
+  /* mastery grids */
+  .m-grid{border-collapse:collapse;margin:4px 0 14px;width:100%;table-layout:fixed;}
+  .m-grid th{font-size:9px;color:var(--muted);font-weight:600;text-align:center;padding:0;height:13px;}
+  .m-grid td{border:1.5px solid #fff;border-radius:2px;height:0;padding-top:7%;background:#ececed;}
+  .m-grid td.m0{background:#ececed;}
+  .m-grid td.m1{background:#ff9aa0;}
+  .m-grid td.m2{background:#ffd479;}
+  .m-grid td.m3{background:#5fce7e;}
+  .mastery-legend{display:flex;align-items:center;font-size:12px;color:var(--muted);flex-wrap:wrap;margin-top:2px;}
+  .mastery-legend .lg{display:inline-block;width:13px;height:13px;border-radius:3px;margin:0 5px 0 12px;}
+  .mastery-legend .lg:first-child{margin-left:0;}
+  .mastery-legend .lg.m0{background:#ececed;}
+  .mastery-legend .lg.m1{background:#ff9aa0;}
+  .mastery-legend .lg.m2{background:#ffd479;}
+  .mastery-legend .lg.m3{background:#5fce7e;}
 </style>
 </head>
 <body>
@@ -281,16 +366,26 @@
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
       </svg>
     </button>
-    <button class="icon-btn" id="btn-bests" aria-label="Personal bests">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
-        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
-        <path d="M4 22h16"/>
-        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
-        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
-        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
-      </svg>
-    </button>
+    <div class="home-top-right">
+      <button class="icon-btn" id="btn-mastery" aria-label="Mastery">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/>
+          <rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="btn-bests" aria-label="Personal bests">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+          <path d="M4 22h16"/>
+          <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+          <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+        </svg>
+      </button>
+    </div>
   </div>
   <div class="home-title"><span class="logo">&#8484;<b>etamac</b></span></div>
   <div class="app-version" id="app-version"></div>
@@ -324,6 +419,7 @@
   <div class="game-body">
     <div class="game-stat" id="game-time">Time: 120</div>
     <div class="game-stat" id="game-score">Score: 0</div>
+    <div class="game-ghost" id="game-ghost" hidden></div>
     <div class="problem" id="game-problem">&nbsp;</div>
     <input id="answer" inputmode="numeric" autocomplete="off" autocorrect="off"
            autocapitalize="off" spellcheck="false" placeholder="Answer">
@@ -406,6 +502,7 @@
     <h1 class="logo">&#8484;<b>etamac</b></h1>
     <div class="res-score">Score: <span id="res-score">0</span></div>
     <div class="res-rate">Rate: <span id="res-rate">0</span></div>
+    <div id="res-extra" hidden></div>
     <h3>By operation</h3>
     <table class="op-table" id="res-optable"></table>
     <div style="margin:14px 0 4px;"><a class="link" id="res-toggle">Details &rsaquo;</a></div>
@@ -445,8 +542,21 @@
   </div>
 </div>
 
+<!-- mastery sheet -->
+<div class="sheet" id="sheet-mastery">
+  <div class="grabber"></div>
+  <button class="sheet-close" data-close>&times;</button>
+  <div class="sheet-inner">
+    <h1>Mastery</h1>
+    <div class="muted" style="font-size:13px;">Fluency heatmap &mdash; facts with both operands &le; 12, graded on your speed &amp; accuracy.</div>
+    <div class="mastery-legend" id="mastery-legend"></div>
+    <div id="mastery-body"></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
+<script src="app-logic.js"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -467,6 +577,15 @@ function opsLabel(sig){return sig?sig.split('+').map(k=>OPS_SYM[k]).join(' '):'M
 /* Replaced by the deploy workflow with "build N · <sha>"; stays a placeholder
    when run locally, so the home screen then shows "dev build". */
 const APP_VERSION='__BUILD__';
+
+/* Pure logic shared with the unit tests — see app-logic.js. The DOM /
+   IndexedDB glue below calls into these; tests exercise them directly. */
+const { dayKey, parseKey, addDays, canonFact, factKey, answerFor,
+        dayCounts, currentStreak, bestStreak, reconcileFreezes,
+        defaultProgress, normalizeProgress, xpForSession, awardXp,
+        canBuyFreeze, buyFreeze, pickGhost, ghostScoreAt,
+        masteryBaseline, masteryGrid,
+        DAILY_GOAL, FREEZE_COST, MAX_FREEZES } = Z;
 
 /* ---------- IndexedDB storage ---------- */
 const DB_NAME='zetamac', DB_VERSION=1;
@@ -506,6 +625,17 @@ const Store={
     const db=await openDB();
     const t=db.transaction('meta','readwrite');
     t.objectStore('meta').put({key:'currentConfig',value:clone(c)});
+    return txDone(t);
+  },
+  async getProgress(){
+    const db=await openDB();
+    const r=await reqP(db.transaction('meta','readonly').objectStore('meta').get('progress'));
+    return r?r.value:null;
+  },
+  async saveProgress(p){
+    const db=await openDB();
+    const t=db.transaction('meta','readwrite');
+    t.objectStore('meta').put({key:'progress',value:clone(p)});
     return txDone(t);
   },
   async addSession(s){
@@ -630,18 +760,7 @@ function P(op,o1,o2,ans,display){
 
 /* ---------- challenge: drill your historically hardest facts ---------- */
 let activePool=null, lastFactKey=null;
-function answerFor(op,o1,o2){
-  if(op===PLUS)  return o1+o2;
-  if(op===MINUS) return o1-o2;
-  if(op===TIMES) return o1*o2;
-  return o1/o2;
-}
-/* +,× are commutative, so 7×5 and 5×7 are the same fact; −,÷ keep their order */
-function canonFact(op,o1,o2){
-  if(op===PLUS||op===TIMES) return {operation:op,operand1:Math.min(o1,o2),operand2:Math.max(o1,o2)};
-  return {operation:op,operand1:o1,operand2:o2};
-}
-function factKey(p){const c=canonFact(p.operation,p.operand1,p.operand2);return c.operation+':'+c.operand1+':'+c.operand2;}
+/* answerFor / canonFact / factKey live in app-logic.js (shared with tests) */
 /* Blend miss-rate and slowness (vs your own median) into one difficulty score.
    Robust to small samples: facts seen <2 times are skipped; a never-solved fact
    is treated as a 4s solve so it still ranks as hard. */
@@ -708,11 +827,12 @@ function closeMenu(){ $('options-menu').classList.remove('open'); }
    =================================================================== */
 let game=null;
 
-function beginGame(cfg){
+function beginGame(cfg,ghost){
   game={
     sessionId:uuid(), config:cfg, durationMs:cfg.durationSec*1000,
     problems:[], wrongAnswer:null, ended:false,
     startedAtISO:new Date().toISOString(),
+    ghost:ghost||null, ghostShown:-1,
   };
   queue=[]; lastFactKey=null; fillQueue(cfg);
   game.startTime=performance.now();
@@ -721,16 +841,21 @@ function beginGame(cfg){
   $('game-problem').textContent=game.current.display;
   $('game-score').textContent='Score: 0';
   $('game-time').textContent='Time: '+cfg.durationSec;
+  const gh=$('game-ghost');
+  gh.hidden=!game.ghost;
+  gh.className='game-ghost';
+  if(game.ghost) gh.innerHTML=GHOST_SVG+'<span>Ghost 0</span>';
   $('answer').value='';
   showScreen('game');
   $('answer').focus();   /* bring up the native iOS numeric keyboard */
   game.timer=setInterval(tick,100);
 }
 
-function startGame(){
+async function startGame(){
   if(!anyOpEnabled(config)){ toast('Enable at least one operation'); return; }
   activePool=null;
-  beginGame(clone(config));
+  const ghost=pickGhost(await Store.getSessions(),config.presetName);
+  beginGame(clone(config),ghost);
 }
 
 async function startChallenge(){
@@ -740,12 +865,24 @@ async function startChallenge(){
   const ops={add:false,sub:false,mul:false,div:false};
   const SYM={[PLUS]:'add',[MINUS]:'sub',[TIMES]:'mul',[DIV]:'div'};
   facts.forEach(f=>{ops[SYM[f.operation]]=true;});
-  beginGame({presetName:'Challenge',durationSec:120,ops,add:R(1,20,1,20),mul:R(1,9,1,9)});
+  const ghost=pickGhost(await Store.getSessions(),'Challenge');
+  beginGame({presetName:'Challenge',durationSec:120,ops,add:R(1,20,1,20),mul:R(1,9,1,9)},ghost);
 }
 
 function tick(){
-  const remaining=game.durationMs-(performance.now()-game.startTime);
+  const elapsed=performance.now()-game.startTime;
+  const remaining=game.durationMs-elapsed;
   $('game-time').textContent='Time: '+Math.max(0,Math.ceil(remaining/1000));
+  if(game.ghost){
+    const g=ghostScoreAt(game.ghost.rate,elapsed);
+    if(g!==game.ghostShown){
+      game.ghostShown=g;
+      const diff=game.problems.length-g;
+      const gh=$('game-ghost');
+      gh.className='game-ghost'+(diff>=0?' ahead':' behind');
+      gh.innerHTML=GHOST_SVG+'<span>Ghost '+g+' &middot; '+(diff>=0?'+'+diff:diff)+'</span>';
+    }
+  }
   if(remaining<=0){ endGame(); }
 }
 
@@ -809,10 +946,21 @@ async function endGame(){
   };
   await Store.addSession(session);
   await Store.addProblems(probs);
+
+  /* XP: 1 per solved problem (the score). Arm the goal celebration when this
+     game is the one that closes today's goal. */
+  const xpEarned=awardXp(progress,xpForSession(session));
+  await Store.saveProgress(progress);
+  const todayCount=dayCounts(await Store.getSessions())[dayKey(new Date())]||0;
+  if(todayCount===DAILY_GOAL) celebrateGoal=true;
+
+  const ghost=game.ghost
+    ? {your:session.score, ghost:ghostScoreAt(game.ghost.rate,game.elapsedMs)} : null;
+
   $('answer').blur();
   showScreen('home');
   await renderHome();
-  openResults(session,probs);
+  openResults(session,probs,{xpEarned,ghost});
 }
 
 function quitGame(){
@@ -856,9 +1004,24 @@ function renderOpTable(el,rows){
   el.innerHTML=html;
 }
 
-function openResults(session,problems){
+function openResults(session,problems,extra){
   $('res-score').textContent=session.score;
   $('res-rate').textContent=fmtRate(session.rate);
+
+  /* post-game extras (XP earned, ghost outcome) — only on a freshly played
+     game, not when reopening history from the Previous Games list */
+  const ex=$('res-extra');
+  let xh='';
+  if(extra){
+    if(extra.xpEarned) xh+='<span class="res-xp">+'+extra.xpEarned+' XP</span>';
+    if(extra.ghost){
+      const d=extra.ghost.your-extra.ghost.ghost;
+      xh+='<span class="res-ghost '+(d>=0?'win':'lose')+'">'+GHOST_SVG+
+        (d>=0?'Beat ghost by '+d:'Ghost won by '+(-d))+
+        ' <em>'+extra.ghost.your+' vs '+extra.ghost.ghost+'</em></span>';
+    }
+  }
+  ex.innerHTML=xh; ex.hidden=!xh;
 
   renderOpTable($('res-optable'),opStats(problems));
 
@@ -878,64 +1041,58 @@ function openResults(session,problems){
 /* ===================================================================
    STREAK — at least DAILY_GOAL completed games per (local) day
    =================================================================== */
-const DAILY_GOAL=5;
 const WEEKDAY=['S','M','T','W','T','F','S'];
 const FLAME_SVG='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>';
-function dayKey(d){
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+
-         '-'+String(d.getDate()).padStart(2,'0');
+const SNOW_SVG='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/><line x1="18.4" y1="5.6" x2="5.6" y2="18.4"/></svg>';
+const GHOST_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V11a9 9 0 0 1 18 0v10l-3-2-3 2-3-2-3 2-3-2z"/><line x1="9" y1="10" x2="9" y2="10.5"/><line x1="15" y1="10" x2="15" y2="10.5"/></svg>';
+/* dayKey / parseKey / addDays / dayCounts / currentStreak / bestStreak /
+   reconcileFreezes all live in app-logic.js (shared with the test suite). */
+
+/* gamification state, hydrated in init(); celebrateGoal is armed by endGame()
+   when a game closes today's goal, then fired by the next renderStreak() */
+let progress=defaultProgress();
+let celebrateGoal=false;
+
+/* SVG progress ring for today's goal */
+function goalRing(count,goal){
+  const r=20, circ=2*Math.PI*r, pct=Math.min(1,count/Math.max(1,goal));
+  const done=count>=goal;
+  return '<svg class="ring'+(done?' done':'')+'" width="52" height="52" viewBox="0 0 52 52" aria-hidden="true">'+
+    '<circle class="ring-bg" cx="26" cy="26" r="'+r+'"/>'+
+    '<circle class="ring-fg" cx="26" cy="26" r="'+r+'" stroke-dasharray="'+circ.toFixed(1)+
+      '" stroke-dashoffset="'+(circ*(1-pct)).toFixed(1)+'"/>'+
+    '<text class="ring-txt" x="26" y="27">'+(done?'&check;':count+'/'+goal)+'</text></svg>';
 }
-function parseKey(k){const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d);}
-function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
-/* date → count of completed games that local day */
-function dayCounts(sessions){
-  const m={};
-  for(const s of sessions){const k=dayKey(new Date(s.endedAt));m[k]=(m[k]||0)+1;}
-  return m;
-}
-/* consecutive days meeting the goal, ending today (today in progress doesn't
-   break it — we begin the walk from yesterday when today isn't met yet) */
-function currentStreak(counts){
-  let d=new Date();
-  if((counts[dayKey(d)]||0)<DAILY_GOAL) d=addDays(d,-1);
-  let n=0;
-  while((counts[dayKey(d)]||0)>=DAILY_GOAL){ n++; d=addDays(d,-1); }
-  return n;
-}
-/* longest run of consecutive goal-meeting days, ever */
-function bestStreak(counts){
-  const days=Object.keys(counts).filter(k=>counts[k]>=DAILY_GOAL).sort();
-  let best=0,run=0,prev=null;
-  for(const k of days){
-    run=(prev&&dayKey(addDays(parseKey(prev),1))===k)?run+1:1;
-    if(run>best) best=run;
-    prev=k;
-  }
-  return best;
-}
+
 async function renderStreak(){
   const counts=dayCounts(await Store.getSessions());
   const today=new Date();
-  const todayCount=counts[dayKey(today)]||0;
-  const cur=currentStreak(counts);
-  const best=Math.max(bestStreak(counts),cur);
+  const fd=progress.freezeDays||{};
+  const todayKey=dayKey(today), todayCount=counts[todayKey]||0;
+  const cur=currentStreak(counts,fd,DAILY_GOAL,today);
+  const best=Math.max(bestStreak(counts,fd,DAILY_GOAL),cur);
+  const done=todayCount>=DAILY_GOAL;
+  /* a streak is "at risk" when there's one to lose and today isn't safe yet */
+  const atRisk=cur>0 && !done && !fd[todayKey];
 
   let week='';
   for(let i=6;i>=0;i--){
-    const d=addDays(today,-i), c=counts[dayKey(d)]||0, isToday=i===0;
-    const met=c>=DAILY_GOAL;
+    const d=addDays(today,-i), key=dayKey(d), c=counts[key]||0, isToday=i===0;
     let cls,inner;
-    if(met){ cls='met'; inner='&check;'; }
+    if(c>=DAILY_GOAL){ cls='met'; inner='&check;'; }
+    else if(fd[key]){ cls='frozen'; inner=SNOW_SVG; }
     else if(isToday){ cls='today'; inner=String(c); }
     else { cls='miss'; inner=c?String(c):''; }
     week+='<div class="sd"><span class="sd-lab">'+WEEKDAY[d.getDay()]+'</span>'+
           '<span class="sd-dot '+cls+'">'+inner+'</span></div>';
   }
 
-  const filled=Math.min(todayCount,DAILY_GOAL), done=todayCount>=DAILY_GOAL;
-  let pips='';
-  for(let i=0;i<DAILY_GOAL;i++)
-    pips+='<span class="pip'+(i<filled?(done?' done':' on'):'')+'"></span>';
+  const left=DAILY_GOAL-todayCount;
+  const affordable=canBuyFreeze(progress);
+  const full=progress.freezes>=MAX_FREEZES;
+  const haveIcons=progress.freezes?'<span class="frz-have" title="'+progress.freezes+
+    ' freeze'+(progress.freezes===1?'':'s')+'">'+SNOW_SVG.repeat(progress.freezes)+'</span>':'';
+  const buyLabel=full?'Freezes full':('Buy freeze &middot; '+FREEZE_COST+' XP');
 
   $('streak-card').innerHTML=
     '<div class="streak-head">'+
@@ -946,17 +1103,78 @@ async function renderStreak(){
       '</div>'+
       '<span class="streak-best">'+(best?'Best '+best:'Goal '+DAILY_GOAL+'/day')+'</span>'+
     '</div>'+
+    (atRisk?'<div class="streak-risk"><span class="risk-ico">'+FLAME_SVG+'</span>'+
+      '<span>Your '+cur+'-day streak is at risk &mdash; '+left+' more game'+(left===1?'':'s')+
+      ' today'+(progress.freezes?' (or a freeze keeps it safe)':'')+'.</span></div>':'')+
     '<div class="streak-week">'+week+'</div>'+
-    '<div class="streak-today"><span class="lbl">Today</span>'+
-      '<span class="pips">'+pips+'</span>'+
-      '<span class="streak-count'+(done?' done':'')+'">'+todayCount+' / '+DAILY_GOAL+'</span>'+
-    '</div>';
+    '<div class="streak-today">'+goalRing(todayCount,DAILY_GOAL)+
+      '<div class="today-meta">'+
+        '<span class="today-lbl">Today&rsquo;s goal</span>'+
+        '<span class="streak-count'+(done?' done':'')+'">'+todayCount+' / '+DAILY_GOAL+
+          (done?' complete':'')+'</span>'+
+      '</div>'+
+      '<div class="frz">'+haveIcons+
+        '<button class="frz-buy'+(affordable?'':' off')+'" id="btn-buy-freeze"'+
+          (affordable?'':' disabled')+'>'+buyLabel+'</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="xp-row"><span class="xp-lab">XP</span>'+
+      '<span class="xp-val">'+progress.xp+'</span>'+
+      '<span class="xp-sub">'+progress.xpLifetime+' lifetime &middot; freeze costs '+FREEZE_COST+'</span></div>';
+
+  if(celebrateGoal && done){ celebrateGoal=false; celebrate(); }
+}
+
+/* one-shot confetti burst when today's goal is completed */
+function celebrate(){
+  toast('Daily goal complete! 🎉');
+  const cv=document.createElement('canvas'); cv.className='confetti';
+  document.body.appendChild(cv);
+  const dpr=window.devicePixelRatio||1, W=window.innerWidth, H=window.innerHeight;
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.width=W+'px'; cv.style.height=H+'px';
+  const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+  const colors=['#007aff','#34c759','#ff9500','#ff3b30','#c645d6'];
+  const parts=[];
+  for(let i=0;i<130;i++) parts.push({
+    x:W/2+(Math.random()*2-1)*40, y:H*0.30,
+    vx:(Math.random()*2-1)*6, vy:(Math.random()*-1-3)*3.2,
+    g:0.18+Math.random()*0.1, rot:Math.random()*6.28, vr:(Math.random()*2-1)*0.3,
+    s:5+Math.random()*6, c:colors[i%colors.length],
+  });
+  const start=performance.now();
+  (function frame(t){
+    const el=t-start; ctx.clearRect(0,0,W,H);
+    for(const p of parts){
+      p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.globalAlpha=Math.max(0,1-el/1500); ctx.fillStyle=p.c;
+      ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*0.6); ctx.restore();
+    }
+    if(el<1500) requestAnimationFrame(frame); else cv.remove();
+  })(start);
+}
+
+/* spend XP for a streak freeze */
+async function onBuyFreeze(){
+  if(buyFreeze(progress)){
+    await Store.saveProgress(progress);
+    await renderHome();
+    toast('Streak freeze ready');
+  }else if(progress.freezes>=MAX_FREEZES){
+    toast('You already hold the max of '+MAX_FREEZES);
+  }else{
+    toast('Need '+FREEZE_COST+' XP — you have '+progress.xp);
+  }
 }
 
 /* ===================================================================
    HOME — previous games list
    =================================================================== */
 async function renderHome(){
+  /* auto-spend owned freezes to bridge recently-missed days before we draw */
+  const counts=dayCounts(await Store.getSessions());
+  if(reconcileFreezes(counts,progress,new Date(),DAILY_GOAL)>0)
+    await Store.saveProgress(progress);
   renderStreak();
   const sessions=(await Store.getSessions())
     .sort((a,b)=>new Date(b.endedAt)-new Date(a.endedAt));
@@ -1280,6 +1498,44 @@ async function renderBests(){
   body.innerHTML=h;
 }
 
+/* ---------- mastery grids ---------- */
+const MASTERY_OPS=[[TIMES,'Multiplication'],[DIV,'Division'],[PLUS,'Addition'],[MINUS,'Subtraction']];
+const LEVEL_CLASS=['m0','m1','m2','m3'];
+function renderGrid(g){
+  const n=g.maxN;
+  let h='<table class="m-grid"><tr><th></th>';
+  for(let j=1;j<=n;j++) h+='<th>'+j+'</th>';
+  h+='</tr>';
+  for(let i=1;i<=n;i++){
+    h+='<tr><th>'+i+'</th>';
+    for(let j=1;j<=n;j++){
+      const a=Math.min(i,j), b=Math.max(i,j), c=g.cells[a-1][b-1];
+      const lvl=c?c.level:0;
+      const title=c?(Math.round(c.accuracy*100)+'% · '+
+        (c.avgMs===Infinity?'—':fmtSec(c.avgMs))+' · n='+c.count):'unseen';
+      h+='<td class="'+LEVEL_CLASS[lvl]+'" title="'+title+'"></td>';
+    }
+    h+='</tr>';
+  }
+  return h+'</table>';
+}
+async function renderMastery(){
+  const problems=await Store.getProblems();
+  $('mastery-legend').innerHTML=
+    '<span class="lg m0"></span>Unseen<span class="lg m1"></span>Weak'+
+    '<span class="lg m2"></span>OK<span class="lg m3"></span>Strong';
+  const body=$('mastery-body');
+  if(!problems.length){
+    body.innerHTML='<p class="muted">No games yet — play to build your mastery map.</p>';
+    return;
+  }
+  const baseline=masteryBaseline(problems);
+  let h='';
+  for(const [op,name] of MASTERY_OPS)
+    h+='<h3>'+op+' '+name+'</h3>'+renderGrid(masteryGrid(problems,op,12,baseline));
+  body.innerHTML=h;
+}
+
 function csvCell(v){
   const s=String(v);
   return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
@@ -1319,7 +1575,10 @@ $('btn-options').addEventListener('click',openOptionsMenu);
 $('btn-quit').addEventListener('click',quitGame);
 $('btn-settings').addEventListener('click',()=>{ syncSettings(); openSheet('sheet-settings'); });
 $('btn-bests').addEventListener('click',()=>{ openSheet('sheet-bests'); renderBests(); });
+$('btn-mastery').addEventListener('click',()=>{ openSheet('sheet-mastery'); renderMastery(); });
 $('btn-stats').addEventListener('click',()=>{ openSheet('sheet-stats'); renderStats(); });
+/* the buy-freeze button is re-created on every renderStreak — delegate */
+$('streak-card').addEventListener('click',e=>{ if(e.target.closest('#btn-buy-freeze')) onBuyFreeze(); });
 $('btn-csv').addEventListener('click',downloadCSV);
 $('stats-period').addEventListener('click',e=>{
   const b=e.target.closest('[data-period]'); if(!b) return;
@@ -1388,6 +1647,9 @@ async function init(){
     const saved=await Store.getConfig();
     if(saved) config=saved;
     else { loadPreset(DEFAULT_PRESET); await Store.saveConfig(config); }
+    const sp=await Store.getProgress();
+    progress=normalizeProgress(sp);
+    if(!sp) await Store.saveProgress(progress);
   }catch(err){
     console.error('Storage unavailable',err);
     toast('Storage unavailable — progress won’t be saved');
