@@ -209,3 +209,131 @@ test('cellLevel grades weak (inaccurate or slow), ok, strong', () => {
   assert.equal(Z.cellLevel({ count: 5, correct: 5, totalMs: 4000 }, 1000), 3);  // avg 800, perfect
   assert.equal(Z.cellLevel({ count: 5, correct: 4, totalMs: 4800 }, 1000), 2);  // 80% acc, avg 1200 -> ok
 });
+
+/* ===================== opStats ===================== */
+test('opStats aggregates per op, in OP_ORDER, skipping ops with no data', () => {
+  const problems = [
+    { operation: PLUS, msToAnswer: 1000, wasCorrect: true },
+    { operation: PLUS, msToAnswer: 3000, wasCorrect: false },
+    { operation: TIMES, msToAnswer: 2000, wasCorrect: true },
+  ];
+  const rows = Z.opStats(problems);
+  assert.deepEqual(rows.map(r => r.op), [PLUS, TIMES]); // MINUS/DIV absent, order preserved
+  const add = rows[0];
+  assert.equal(add.count, 2);
+  assert.equal(add.errors, 1);
+  assert.equal(add.avgMs, 2000); // (1000+3000)/2
+});
+
+test('opStats flags the single slowest operation (first wins on a tie)', () => {
+  const problems = [
+    { operation: PLUS, msToAnswer: 1000, wasCorrect: true },
+    { operation: TIMES, msToAnswer: 5000, wasCorrect: true },
+    { operation: DIV, msToAnswer: 5000, wasCorrect: true },
+  ];
+  const rows = Z.opStats(problems);
+  const slowest = rows.filter(r => r.slowest);
+  assert.equal(slowest.length, 1);
+  assert.equal(slowest[0].op, TIMES); // ties broken by OP_ORDER (× before ÷)
+});
+
+test('opStats on no problems is an empty list', () => {
+  assert.deepEqual(Z.opStats([]), []);
+});
+
+/* ===================== computeWeakFacts ===================== */
+test('computeWeakFacts ranks misses and slow facts above fast/accurate ones', () => {
+  const fact = (op, o1, o2, ok, ms) =>
+    ({ operation: op, operand1: o1, operand2: o2, wasCorrect: ok, msToAnswer: ms });
+  const key = f => f.operation + ':' + f.operand1 + ':' + f.operand2;
+  const problems = [
+    // 7×8: fast and always right -> should rank LAST
+    fact(TIMES, 7, 8, true, 800), fact(TIMES, 7, 8, true, 900),
+    // 6×9: solved but slow -> a weak fact
+    fact(TIMES, 6, 9, true, 4000), fact(TIMES, 6, 9, true, 4200),
+    // 8×8: high miss rate -> a weak fact
+    fact(TIMES, 8, 8, false, 0), fact(TIMES, 8, 8, true, 1500), fact(TIMES, 8, 8, false, 0),
+  ];
+  const weak = Z.computeWeakFacts(problems, 10);
+  // both the slow fact and the missed fact outrank the fast/accurate one
+  assert.equal(key(weak[weak.length - 1]), '×:7:8');
+  assert.deepEqual(new Set([key(weak[0]), key(weak[1])]), new Set(['×:6:9', '×:8:8']));
+  // correctAnswer is filled in for the challenge pool to reuse
+  const m78 = weak.find(f => f.operand1 === 7 && f.operand2 === 8);
+  assert.equal(m78.correctAnswer, 56);
+});
+
+test('computeWeakFacts folds commutative facts and skips singletons', () => {
+  const fact = (op, o1, o2, ok, ms) =>
+    ({ operation: op, operand1: o1, operand2: o2, wasCorrect: ok, msToAnswer: ms });
+  const problems = [
+    fact(TIMES, 7, 8, true, 1000),  // folds with 8×7 -> count 2, kept
+    fact(TIMES, 8, 7, true, 1200),
+    fact(TIMES, 3, 4, true, 1000),  // seen once -> skipped
+  ];
+  const weak = Z.computeWeakFacts(problems, 10);
+  assert.equal(weak.length, 1);
+  assert.equal(weak[0].operand1, 7);
+  assert.equal(weak[0].operand2, 8);
+  assert.equal(weak[0]._count, 2);
+});
+
+test('computeWeakFacts returns [] when nothing has been solved correctly', () => {
+  const problems = [
+    { operation: PLUS, operand1: 2, operand2: 3, wasCorrect: false, msToAnswer: 0 },
+    { operation: PLUS, operand1: 2, operand2: 3, wasCorrect: false, msToAnswer: 0 },
+  ];
+  assert.deepEqual(Z.computeWeakFacts(problems, 10), []);
+});
+
+test('computeWeakFacts honors the topN cap', () => {
+  const problems = [];
+  for (let n = 2; n <= 9; n++)              // 8 distinct facts, each seen twice
+    for (let i = 0; i < 2; i++)
+      problems.push({ operation: TIMES, operand1: 2, operand2: n, wasCorrect: true, msToAnswer: 1000 * n });
+  const weak = Z.computeWeakFacts(problems, 3);
+  assert.equal(weak.length, 3);
+});
+
+/* ===================== genProblem (invariants) ===================== */
+test('genProblem always yields a well-formed, in-range, exactly-solvable problem', () => {
+  // a wide config that exercises every op and a range that admits 1
+  const cfg = {
+    ops: { add: true, sub: true, mul: true, div: true },
+    add: { min1: 2, max1: 100, min2: 2, max2: 100 },
+    mul: { min1: 2, max1: 12, min2: 2, max2: 100 },
+  };
+  // deterministic PRNG so a failure is reproducible (mulberry32)
+  let s = 0x9e3779b9;
+  const rng = () => {
+    s |= 0; s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let i = 0; i < 5000; i++) {
+    const p = Z.genProblem(cfg, rng);
+    // answer matches the stated operation
+    assert.equal(Z.answerFor(p.operation, p.operand1, p.operand2), p.correctAnswer);
+    // never a negative subtraction
+    if (p.operation === MINUS) assert.ok(p.operand1 >= p.operand2, `negative sub: ${p.display}`);
+    // division is always exact and integer
+    if (p.operation === DIV) {
+      assert.ok(Number.isInteger(p.correctAnswer), `non-integer div: ${p.display}`);
+      assert.equal(p.operand1 % p.operand2, 0, `inexact div: ${p.display}`);
+    }
+    // display reads "o1 op o2"
+    assert.equal(p.display, p.operand1 + ' ' + p.operation + ' ' + p.operand2);
+  }
+});
+
+test('genProblem only emits enabled operations', () => {
+  const cfg = {
+    ops: { add: false, sub: false, mul: true, div: false },
+    add: { min1: 1, max1: 9, min2: 1, max2: 9 },
+    mul: { min1: 2, max1: 9, min2: 2, max2: 9 },
+  };
+  let i = 0;
+  const rng = () => ((i++ * 0.137) % 1); // cheap spread across [0,1)
+  for (let n = 0; n < 200; n++) assert.equal(Z.genProblem(cfg, rng).operation, TIMES);
+});

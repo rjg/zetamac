@@ -566,7 +566,6 @@
    ===================================================================== */
 
 const PLUS='+', MINUS='−', TIMES='×', DIV='÷';
-const OP_ORDER=[PLUS,MINUS,TIMES,DIV];
 const OP_NAME={[PLUS]:'Addition',[MINUS]:'Subtraction',[TIMES]:'Multiplication',[DIV]:'Division'};
 /* config.ops keys → display symbols, for the stats operation-combination pivot */
 const OPS_KEYS=['add','sub','mul','div'];
@@ -595,7 +594,7 @@ const { dayKey, parseKey, addDays, canonFact, factKey, answerFor,
         dayCounts, currentStreak, bestStreak, reconcileFreezes,
         defaultProgress, normalizeProgress, xpForSession, awardXp,
         canBuyFreeze, buyFreeze, pickGhost, ghostScoreAt,
-        masteryBaseline, masteryGrid,
+        masteryBaseline, masteryGrid, opStats, computeWeakFacts, OP_ORDER,
         DAILY_GOAL, FREEZE_COST, MAX_FREEZES } = Z;
 
 /* ---------- IndexedDB storage ---------- */
@@ -706,7 +705,6 @@ const DEFAULT_PRESET='Normal';
 
 /* ---------- helpers ---------- */
 function clone(o){return JSON.parse(JSON.stringify(o));}
-function ri(a,b){if(a>b){const t=a;a=b;b=t;}return Math.floor(Math.random()*(b-a+1))+a;}
 function uuid(){
   return (crypto.randomUUID&&crypto.randomUUID())||
     ('s-'+Date.now()+'-'+Math.random().toString(16).slice(2));
@@ -738,69 +736,16 @@ loadPreset(DEFAULT_PRESET);
 /* ---------- problem generation ---------- */
 function anyOpEnabled(c){return c.ops.add||c.ops.sub||c.ops.mul||c.ops.div;}
 
-function genProblem(c){
-  if(activePool) return genFromPool();
-  const pool=[];
-  if(c.ops.add)pool.push('add'); if(c.ops.sub)pool.push('sub');
-  if(c.ops.mul)pool.push('mul'); if(c.ops.div)pool.push('div');
-  const kind=pool[Math.floor(Math.random()*pool.length)];
-  const a=c.add, m=c.mul;
-  if(kind==='add'){
-    const x=ri(a.min1,a.max1), y=ri(a.min2,a.max2);
-    return P(PLUS,x,y,x+y,x+' '+PLUS+' '+y);
-  }
-  if(kind==='sub'){           // addition reversed: x + y = sum  ->  sum - one = other
-    const x=ri(a.min1,a.max1), y=ri(a.min2,a.max2), sum=x+y;
-    return Math.random()<0.5
-      ? P(MINUS,sum,x,y,sum+' '+MINUS+' '+x)
-      : P(MINUS,sum,y,x,sum+' '+MINUS+' '+y);
-  }
-  if(kind==='mul'){
-    const x=ri(m.min1,m.max1), y=ri(m.min2,m.max2);
-    return P(TIMES,x,y,x*y,x+' '+TIMES+' '+y);
-  }
-  /* div: multiplication reversed: x * y = prod -> prod / one = other */
-  const x=ri(m.min1,m.max1), y=ri(m.min2,m.max2), prod=x*y;
-  return Math.random()<0.5
-    ? P(DIV,prod,x,y,prod+' '+DIV+' '+x)
-    : P(DIV,prod,y,x,prod+' '+DIV+' '+y);
-}
+/* genProblem (config-based) lives in app-logic.js, shared with tests; the
+   challenge-pool path stays here because it carries module state. */
 function P(op,o1,o2,ans,display){
   return {operation:op,operand1:o1,operand2:o2,correctAnswer:ans,display};
 }
 
 /* ---------- challenge: drill your historically hardest facts ---------- */
 let activePool=null, lastFactKey=null;
-/* answerFor / canonFact / factKey live in app-logic.js (shared with tests) */
-/* Blend miss-rate and slowness (vs your own median) into one difficulty score.
-   Robust to small samples: facts seen <2 times are skipped; a never-solved fact
-   is treated as a 4s solve so it still ranks as hard. */
-function computeWeakFacts(problems,topN){
-  const okMs=problems.filter(p=>p.wasCorrect).map(p=>p.msToAnswer).sort((a,b)=>a-b);
-  if(!okMs.length) return [];
-  const baseline=okMs[Math.floor(okMs.length/2)];
-  const m={};
-  for(const p of problems){
-    const k=factKey(p);
-    if(!m[k]){const c=canonFact(p.operation,p.operand1,p.operand2);m[k]={...c,times:[],errors:0,count:0};}
-    const f=m[k]; f.count++;
-    if(p.wasCorrect) f.times.push(p.msToAnswer); else f.errors++;
-  }
-  const facts=[];
-  for(const k in m){
-    const f=m[k]; if(f.count<2) continue;
-    f.times.sort((a,b)=>a-b);
-    const med=f.times.length?f.times[Math.floor(f.times.length/2)]:4000;
-    const missRate=f.errors/f.count;
-    const score=(med-baseline)/1000 + missRate*2.5;
-    const ans=answerFor(f.operation,f.operand1,f.operand2);
-    facts.push({operation:f.operation,operand1:f.operand1,operand2:f.operand2,
-      correctAnswer:ans,display:f.operand1+' '+f.operation+' '+f.operand2,
-      _score:score,_medMs:med,_missRate:missRate,_count:f.count});
-  }
-  facts.sort((a,b)=>b._score-a._score);
-  return facts.slice(0,topN);
-}
+/* computeWeakFacts / answerFor / canonFact / factKey live in app-logic.js
+   (shared with tests). */
 function genFromPool(){
   let pick=activePool[0];
   for(let i=0;i<8;i++){
@@ -813,7 +758,7 @@ function genFromPool(){
 
 /* problem queue — pre-generated so there is never a frame hitch */
 let queue=[];
-function fillQueue(c){ while(queue.length<24) queue.push(genProblem(c)); }
+function fillQueue(c){ while(queue.length<24) queue.push(activePool?genFromPool():genProblem(c)); }
 function nextFromQueue(c){ if(queue.length<6) fillQueue(c); return queue.shift(); }
 
 /* ---------- router ---------- */
@@ -862,11 +807,26 @@ function beginGame(cfg,ghost){
   game.timer=setInterval(tick,100);
 }
 
-async function startGame(){
+/* Fetch the matching ghost and attach it to the game already in progress.
+   Done after beginGame so the keyboard-opening focus() in beginGame stays
+   inside the start tap's gesture (iOS won't raise the keyboard otherwise).
+   Bails if the player has since quit or restarted. */
+async function attachGhost(presetName){
+  if(!game) return;
+  const sid=game.sessionId;
+  const ghost=pickGhost(await Store.getSessions(),presetName);
+  if(!ghost||!game||game.ended||game.sessionId!==sid) return;
+  game.ghost=ghost; game.ghostShown=-1;
+  const gh=$('game-ghost');
+  gh.hidden=false; gh.className='game-ghost';
+  gh.innerHTML=GHOST_SVG+'<span>Ghost 0</span>';
+}
+
+function startGame(){
   if(!anyOpEnabled(config)){ toast('Enable at least one operation'); return; }
   activePool=null;
-  const ghost=pickGhost(await Store.getSessions(),config.presetName);
-  beginGame(clone(config),ghost);
+  beginGame(clone(config),null);   // start synchronously so the keyboard opens
+  attachGhost(config.presetName);
 }
 
 async function startChallenge(){
@@ -876,8 +836,8 @@ async function startChallenge(){
   const ops={add:false,sub:false,mul:false,div:false};
   const SYM={[PLUS]:'add',[MINUS]:'sub',[TIMES]:'mul',[DIV]:'div'};
   facts.forEach(f=>{ops[SYM[f.operation]]=true;});
-  const ghost=pickGhost(await Store.getSessions(),'Challenge');
-  beginGame({presetName:'Challenge',durationSec:120,ops,add:R(1,20,1,20),mul:R(1,9,1,9)},ghost);
+  beginGame({presetName:'Challenge',durationSec:120,ops,add:R(1,20,1,20),mul:R(1,9,1,9)},null);
+  attachGhost('Challenge');
 }
 
 function tick(){
@@ -986,21 +946,7 @@ function quitGame(){
 /* ===================================================================
    RESULTS
    =================================================================== */
-function opStats(problems){
-  const map={};
-  for(const op of OP_ORDER) map[op]={op,count:0,totalMs:0,errors:0};
-  for(const p of problems){
-    const s=map[p.operation]; if(!s) continue;
-    s.count++; s.totalMs+=p.msToAnswer; if(!p.wasCorrect) s.errors++;
-  }
-  const rows=OP_ORDER.map(op=>map[op]).filter(s=>s.count>0)
-    .map(s=>({...s,avgMs:s.totalMs/s.count}));
-  let slow=null;
-  for(const r of rows) if(!slow||r.avgMs>slow.avgMs) slow=r;
-  if(slow) slow.slowest=true;
-  return rows;
-}
-
+/* opStats lives in app-logic.js (shared with tests). */
 function renderOpTable(el,rows){
   let html='<tr><th>Operation</th><th class="num">Count</th>'+
            '<th class="num">Avg</th><th class="num">Errors</th></tr>';

@@ -17,6 +17,7 @@
   'use strict';
 
   const PLUS = '+', MINUS = '−', TIMES = '×', DIV = '÷';
+  const OP_ORDER = [PLUS, MINUS, TIMES, DIV];
 
   /* ---- gamification constants ---- */
   const DAILY_GOAL = 5;     // completed games per local day to "meet" the day
@@ -46,6 +47,42 @@
   function factKey(p) {
     const c = canonFact(p.operation, p.operand1, p.operand2);
     return c.operation + ':' + c.operand1 + ':' + c.operand2;
+  }
+
+  /* ---- problem generation ----
+     Subtraction is addition reversed and division is multiplication reversed,
+     so answers are always whole and never negative by construction. `rng` is
+     injectable (defaults to Math.random) purely so tests are deterministic;
+     the challenge-pool path lives in index.html and is not generated here. */
+  function randInt(rng, a, b) {
+    if (a > b) { const t = a; a = b; b = t; }
+    return Math.floor(rng() * (b - a + 1)) + a;
+  }
+  function makeProblem(op, o1, o2, ans) {
+    return { operation: op, operand1: o1, operand2: o2, correctAnswer: ans, display: o1 + ' ' + op + ' ' + o2 };
+  }
+  function genProblem(c, rng) {
+    rng = rng || Math.random;
+    const pool = [];
+    if (c.ops.add) pool.push('add'); if (c.ops.sub) pool.push('sub');
+    if (c.ops.mul) pool.push('mul'); if (c.ops.div) pool.push('div');
+    const kind = pool[Math.floor(rng() * pool.length)];
+    const a = c.add, m = c.mul;
+    if (kind === 'add') {
+      const x = randInt(rng, a.min1, a.max1), y = randInt(rng, a.min2, a.max2);
+      return makeProblem(PLUS, x, y, x + y);
+    }
+    if (kind === 'sub') {            // x + y = sum  ->  sum - one = other
+      const x = randInt(rng, a.min1, a.max1), y = randInt(rng, a.min2, a.max2), sum = x + y;
+      return rng() < 0.5 ? makeProblem(MINUS, sum, x, y) : makeProblem(MINUS, sum, y, x);
+    }
+    if (kind === 'mul') {
+      const x = randInt(rng, m.min1, m.max1), y = randInt(rng, m.min2, m.max2);
+      return makeProblem(TIMES, x, y, x * y);
+    }
+    // div: x * y = prod  ->  prod / one = other
+    const x = randInt(rng, m.min1, m.max1), y = randInt(rng, m.min2, m.max2), prod = x * y;
+    return rng() < 0.5 ? makeProblem(DIV, prod, x, y) : makeProblem(DIV, prod, y, x);
   }
 
   /* ---- streak ---- */
@@ -225,14 +262,68 @@
     return { op, maxN, baseline, cells };
   }
 
+  /* ---- per-operation aggregate (results & stats tables) ----
+     One row per operation that occurred, in OP_ORDER; the row with the
+     highest average solve time is flagged `slowest` (first one wins ties). */
+  function opStats(problems) {
+    const map = {};
+    for (const op of OP_ORDER) map[op] = { op, count: 0, totalMs: 0, errors: 0 };
+    for (const p of problems) {
+      const s = map[p.operation];
+      if (!s) continue;
+      s.count++; s.totalMs += p.msToAnswer; if (!p.wasCorrect) s.errors++;
+    }
+    const rows = OP_ORDER.map(op => map[op]).filter(s => s.count > 0)
+      .map(s => ({ ...s, avgMs: s.totalMs / s.count }));
+    let slow = null;
+    for (const r of rows) if (!slow || r.avgMs > slow.avgMs) slow = r;
+    if (slow) slow.slowest = true;
+    return rows;
+  }
+
+  /* ---- challenge: rank your historically hardest facts ----
+     Blend miss-rate and slowness (median solve vs your overall median) into one
+     difficulty score. Robust to small samples: facts seen <2 times are skipped;
+     a fact that's never been solved correctly is treated as a 4s solve so it
+     still ranks as hard. Returns the topN highest-scoring facts. */
+  function computeWeakFacts(problems, topN) {
+    const anyCorrect = problems.some(p => p.wasCorrect);
+    if (!anyCorrect) return [];
+    const baseline = masteryBaseline(problems);   // overall median correct time
+    const m = {};
+    for (const p of problems) {
+      const k = factKey(p);
+      if (!m[k]) { const c = canonFact(p.operation, p.operand1, p.operand2); m[k] = { ...c, times: [], errors: 0, count: 0 }; }
+      const f = m[k]; f.count++;
+      if (p.wasCorrect) f.times.push(p.msToAnswer); else f.errors++;
+    }
+    const facts = [];
+    for (const k in m) {
+      const f = m[k]; if (f.count < 2) continue;
+      f.times.sort((a, b) => a - b);
+      const med = f.times.length ? f.times[Math.floor(f.times.length / 2)] : 4000;
+      const missRate = f.errors / f.count;
+      const score = (med - baseline) / 1000 + missRate * 2.5;
+      const ans = answerFor(f.operation, f.operand1, f.operand2);
+      facts.push({
+        operation: f.operation, operand1: f.operand1, operand2: f.operand2,
+        correctAnswer: ans, display: f.operand1 + ' ' + f.operation + ' ' + f.operand2,
+        _score: score, _medMs: med, _missRate: missRate, _count: f.count,
+      });
+    }
+    facts.sort((a, b) => b._score - a._score);
+    return facts.slice(0, topN);
+  }
+
   return {
-    PLUS, MINUS, TIMES, DIV,
+    PLUS, MINUS, TIMES, DIV, OP_ORDER,
     DAILY_GOAL, FREEZE_COST, MAX_FREEZES,
     dayKey, parseKey, addDays,
-    answerFor, canonFact, factKey,
+    answerFor, canonFact, factKey, genProblem,
     dayCounts, daySatisfied, currentStreak, bestStreak, reconcileFreezes,
     defaultProgress, normalizeProgress, xpForSession, awardXp, canBuyFreeze, buyFreeze,
     pickGhost, ghostScoreAt,
     gridFactors, masteryBaseline, cellLevel, masteryGrid,
+    opStats, computeWeakFacts,
   };
 });
