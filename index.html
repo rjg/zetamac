@@ -63,6 +63,38 @@
   .big-btn:active{filter:brightness(.92);}
   .home-actions.stack{padding-top:0;}
 
+  /* ---------- streak ---------- */
+  .streak-card{
+    margin:0 16px 16px;padding:13px 16px 14px;
+    background:var(--card);border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);
+  }
+  .streak-head{display:flex;align-items:center;justify-content:space-between;}
+  .streak-title{display:flex;align-items:baseline;gap:7px;}
+  .streak-flame{font-size:21px;line-height:1;}
+  .streak-flame.cold{filter:grayscale(1);opacity:.4;}
+  .streak-num{font-size:21px;font-weight:700;}
+  .streak-label{font-size:14px;color:var(--muted);}
+  .streak-best{font-size:12.5px;color:var(--muted);}
+  .streak-week{display:flex;justify-content:space-between;margin:13px 0 0;}
+  .sd{display:flex;flex-direction:column;align-items:center;gap:5px;flex:1;}
+  .sd-lab{font-size:11px;color:var(--muted);}
+  .sd-dot{
+    width:26px;height:26px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:14px;font-variant-numeric:tabular-nums;
+  }
+  .sd-dot.met{background:var(--green);color:#fff;}
+  .sd-dot.miss{background:#ececed;color:#c7c7cc;font-size:11px;font-weight:600;}
+  .sd-dot.today{box-shadow:inset 0 0 0 2px var(--blue);color:var(--blue);font-size:11px;font-weight:700;}
+  .streak-today{display:flex;align-items:center;gap:9px;margin-top:13px;}
+  .streak-today .lbl{font-size:13.5px;color:var(--muted);}
+  .pips{display:flex;gap:7px;}
+  .pip{width:13px;height:13px;border-radius:50%;background:#e5e5ea;transition:background .2s;}
+  .pip.on{background:var(--blue);}
+  .pip.done{background:var(--green);}
+  .streak-count{font-size:13.5px;font-weight:600;margin-left:auto;}
+  .streak-count.done{color:var(--green);}
+
   .list-head{
     display:flex;justify-content:space-between;align-items:baseline;
     padding:6px 18px;font-size:14px;color:var(--muted);
@@ -264,6 +296,7 @@
   <div class="home-title"><span class="logo">&#8484;<b>etamac</b></span></div>
   <div class="home-sub">Cloned from zetamac.com</div>
   <div class="app-version" id="app-version"></div>
+  <div class="streak-card" id="streak-card"></div>
   <div class="home-actions">
     <button class="big-btn blue" id="btn-start">Start Game</button>
     <button class="big-btn purple" id="btn-options">Game Options</button>
@@ -845,9 +878,87 @@ function openResults(session,problems){
 }
 
 /* ===================================================================
+   STREAK — at least DAILY_GOAL completed games per (local) day
+   =================================================================== */
+const DAILY_GOAL=5;
+const WEEKDAY=['S','M','T','W','T','F','S'];
+function dayKey(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+
+         '-'+String(d.getDate()).padStart(2,'0');
+}
+function parseKey(k){const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d);}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
+/* date → count of completed games that local day */
+function dayCounts(sessions){
+  const m={};
+  for(const s of sessions){const k=dayKey(new Date(s.endedAt));m[k]=(m[k]||0)+1;}
+  return m;
+}
+/* consecutive days meeting the goal, ending today (today in progress doesn't
+   break it — we begin the walk from yesterday when today isn't met yet) */
+function currentStreak(counts){
+  let d=new Date();
+  if((counts[dayKey(d)]||0)<DAILY_GOAL) d=addDays(d,-1);
+  let n=0;
+  while((counts[dayKey(d)]||0)>=DAILY_GOAL){ n++; d=addDays(d,-1); }
+  return n;
+}
+/* longest run of consecutive goal-meeting days, ever */
+function bestStreak(counts){
+  const days=Object.keys(counts).filter(k=>counts[k]>=DAILY_GOAL).sort();
+  let best=0,run=0,prev=null;
+  for(const k of days){
+    run=(prev&&dayKey(addDays(parseKey(prev),1))===k)?run+1:1;
+    if(run>best) best=run;
+    prev=k;
+  }
+  return best;
+}
+async function renderStreak(){
+  const counts=dayCounts(await Store.getSessions());
+  const today=new Date();
+  const todayCount=counts[dayKey(today)]||0;
+  const cur=currentStreak(counts);
+  const best=Math.max(bestStreak(counts),cur);
+
+  let week='';
+  for(let i=6;i>=0;i--){
+    const d=addDays(today,-i), c=counts[dayKey(d)]||0, isToday=i===0;
+    const met=c>=DAILY_GOAL;
+    let cls,inner;
+    if(met){ cls='met'; inner='&check;'; }
+    else if(isToday){ cls='today'; inner=String(c); }
+    else { cls='miss'; inner=c?String(c):''; }
+    week+='<div class="sd"><span class="sd-lab">'+WEEKDAY[d.getDay()]+'</span>'+
+          '<span class="sd-dot '+cls+'">'+inner+'</span></div>';
+  }
+
+  const filled=Math.min(todayCount,DAILY_GOAL), done=todayCount>=DAILY_GOAL;
+  let pips='';
+  for(let i=0;i<DAILY_GOAL;i++)
+    pips+='<span class="pip'+(i<filled?(done?' done':' on'):'')+'"></span>';
+
+  $('streak-card').innerHTML=
+    '<div class="streak-head">'+
+      '<div class="streak-title">'+
+        '<span class="streak-flame'+(cur?'':' cold')+'">&#128293;</span>'+
+        '<span class="streak-num">'+cur+'</span>'+
+        '<span class="streak-label">day'+(cur===1?'':'s')+' streak</span>'+
+      '</div>'+
+      '<span class="streak-best">'+(best?'Best '+best:'Goal '+DAILY_GOAL+'/day')+'</span>'+
+    '</div>'+
+    '<div class="streak-week">'+week+'</div>'+
+    '<div class="streak-today"><span class="lbl">Today</span>'+
+      '<span class="pips">'+pips+'</span>'+
+      '<span class="streak-count'+(done?' done':'')+'">'+todayCount+' / '+DAILY_GOAL+'</span>'+
+    '</div>';
+}
+
+/* ===================================================================
    HOME — previous games list
    =================================================================== */
 async function renderHome(){
+  renderStreak();
   const sessions=(await Store.getSessions())
     .sort((a,b)=>new Date(b.endedAt)-new Date(a.endedAt));
   const list=$('games-list');
