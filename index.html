@@ -30,13 +30,13 @@
   .muted{color:var(--muted);}
 
   /* ---------- screens ---------- */
-  .screen{display:none;min-height:100%;flex-direction:column;}
+  .screen{display:none;height:100%;flex-direction:column;}
   .screen.active{display:flex;}
   #screen-game{background:#fff;}
   /* pin the game screen to the visible viewport so iOS can't scroll the
      document around when the keyboard slides up; fitGameScreen() in JS
      adjusts `bottom` to match the keyboard's current height. */
-  #screen-game.active{position:fixed;top:0;left:0;right:0;bottom:0;min-height:0;}
+  #screen-game.active{position:fixed;top:0;left:0;right:0;bottom:0;min-height:0;height:auto;}
 
   /* logo */
   .logo{font-weight:300;letter-spacing:.5px;}
