@@ -59,7 +59,9 @@
   }
   .big-btn.blue{background:var(--blue);}
   .big-btn.purple{background:var(--purple);}
+  .big-btn.orange{background:var(--orange);}
   .big-btn:active{filter:brightness(.92);}
+  .home-actions.stack{padding-top:0;}
 
   .list-head{
     display:flex;justify-content:space-between;align-items:baseline;
@@ -262,6 +264,9 @@
   <div class="home-actions">
     <button class="big-btn blue" id="btn-start">Start Game</button>
     <button class="big-btn purple" id="btn-options">Game Options</button>
+  </div>
+  <div class="home-actions stack">
+    <button class="big-btn orange" id="btn-challenge">&#9889; Challenge &mdash; your hardest facts</button>
   </div>
   <div class="list-head">
     <span>Previous Games</span>
@@ -553,6 +558,7 @@ loadPreset(DEFAULT_PRESET);
 function anyOpEnabled(c){return c.ops.add||c.ops.sub||c.ops.mul||c.ops.div;}
 
 function genProblem(c){
+  if(activePool) return genFromPool();
   const pool=[];
   if(c.ops.add)pool.push('add'); if(c.ops.sub)pool.push('sub');
   if(c.ops.mul)pool.push('mul'); if(c.ops.div)pool.push('div');
@@ -582,6 +588,59 @@ function P(op,o1,o2,ans,display){
   return {operation:op,operand1:o1,operand2:o2,correctAnswer:ans,display};
 }
 
+/* ---------- challenge: drill your historically hardest facts ---------- */
+let activePool=null, lastFactKey=null;
+function answerFor(op,o1,o2){
+  if(op===PLUS)  return o1+o2;
+  if(op===MINUS) return o1-o2;
+  if(op===TIMES) return o1*o2;
+  return o1/o2;
+}
+/* +,× are commutative, so 7×5 and 5×7 are the same fact; −,÷ keep their order */
+function canonFact(op,o1,o2){
+  if(op===PLUS||op===TIMES) return {operation:op,operand1:Math.min(o1,o2),operand2:Math.max(o1,o2)};
+  return {operation:op,operand1:o1,operand2:o2};
+}
+function factKey(p){const c=canonFact(p.operation,p.operand1,p.operand2);return c.operation+':'+c.operand1+':'+c.operand2;}
+/* Blend miss-rate and slowness (vs your own median) into one difficulty score.
+   Robust to small samples: facts seen <2 times are skipped; a never-solved fact
+   is treated as a 4s solve so it still ranks as hard. */
+function computeWeakFacts(problems,topN){
+  const okMs=problems.filter(p=>p.wasCorrect).map(p=>p.msToAnswer).sort((a,b)=>a-b);
+  if(!okMs.length) return [];
+  const baseline=okMs[Math.floor(okMs.length/2)];
+  const m={};
+  for(const p of problems){
+    const k=factKey(p);
+    if(!m[k]){const c=canonFact(p.operation,p.operand1,p.operand2);m[k]={...c,times:[],errors:0,count:0};}
+    const f=m[k]; f.count++;
+    if(p.wasCorrect) f.times.push(p.msToAnswer); else f.errors++;
+  }
+  const facts=[];
+  for(const k in m){
+    const f=m[k]; if(f.count<2) continue;
+    f.times.sort((a,b)=>a-b);
+    const med=f.times.length?f.times[Math.floor(f.times.length/2)]:4000;
+    const missRate=f.errors/f.count;
+    const score=(med-baseline)/1000 + missRate*2.5;
+    const ans=answerFor(f.operation,f.operand1,f.operand2);
+    facts.push({operation:f.operation,operand1:f.operand1,operand2:f.operand2,
+      correctAnswer:ans,display:f.operand1+' '+f.operation+' '+f.operand2,
+      _score:score,_medMs:med,_missRate:missRate,_count:f.count});
+  }
+  facts.sort((a,b)=>b._score-a._score);
+  return facts.slice(0,topN);
+}
+function genFromPool(){
+  let pick=activePool[0];
+  for(let i=0;i<8;i++){
+    pick=activePool[Math.floor(Math.random()*activePool.length)];
+    if(activePool.length<2 || factKey(pick)!==lastFactKey) break;
+  }
+  lastFactKey=factKey(pick);
+  return P(pick.operation,pick.operand1,pick.operand2,pick.correctAnswer,pick.display);
+}
+
 /* problem queue — pre-generated so there is never a frame hitch */
 let queue=[];
 function fillQueue(c){ while(queue.length<24) queue.push(genProblem(c)); }
@@ -609,15 +668,13 @@ function closeMenu(){ $('options-menu').classList.remove('open'); }
    =================================================================== */
 let game=null;
 
-function startGame(){
-  if(!anyOpEnabled(config)){ toast('Enable at least one operation'); return; }
-  const cfg=clone(config);
+function beginGame(cfg){
   game={
     sessionId:uuid(), config:cfg, durationMs:cfg.durationSec*1000,
     problems:[], wrongAnswer:null, ended:false,
     startedAtISO:new Date().toISOString(),
   };
-  queue=[]; fillQueue(cfg);
+  queue=[]; lastFactKey=null; fillQueue(cfg);
   game.startTime=performance.now();
   game.current=nextFromQueue(cfg);
   game.problemStart=game.startTime;
@@ -628,6 +685,22 @@ function startGame(){
   showScreen('game');
   $('answer').focus();   /* bring up the native iOS numeric keyboard */
   game.timer=setInterval(tick,100);
+}
+
+function startGame(){
+  if(!anyOpEnabled(config)){ toast('Enable at least one operation'); return; }
+  activePool=null;
+  beginGame(clone(config));
+}
+
+async function startChallenge(){
+  const facts=computeWeakFacts(await Store.getProblems(),30);
+  if(facts.length<6){ toast('Not enough history yet — play a few games first'); return; }
+  activePool=facts;
+  const ops={add:false,sub:false,mul:false,div:false};
+  const SYM={[PLUS]:'add',[MINUS]:'sub',[TIMES]:'mul',[DIV]:'div'};
+  facts.forEach(f=>{ops[SYM[f.operation]]=true;});
+  beginGame({presetName:'Challenge',durationSec:120,ops,add:R(1,20,1,20),mul:R(1,9,1,9)});
 }
 
 function tick(){
@@ -1079,13 +1152,17 @@ async function downloadCSV(){
   const sMap={}; sessions.forEach(s=>{sMap[s.sessionId]=s;});
   const problems=(await Store.getProblems()).sort((a,b)=>a.timestamp-b.timestamp);
   if(!problems.length){ toast('No data to export yet'); return; }
-  const head=['sessionId','sessionDate','presetName','operation','operand1','operand2',
+  const head=['sessionId','sessionDate','presetName','enabledOps','addRange','mulRange','durationSec',
+    'operation','operand1','operand2',
     'correctAnswer','userAnswer','wasCorrect','msToAnswer','problemTimestamp'];
   const lines=[head.join(',')];
+  const rng=r=>r?r.min1+'-'+r.max1+';'+r.min2+'-'+r.max2:'';
+  const opsStr=c=>!c||!c.ops?'':['add','sub','mul','div'].filter(k=>c.ops[k]).join('+');
   for(const p of problems){
-    const s=sMap[p.sessionId]||{};
-    lines.push([p.sessionId,s.endedAt||'',s.presetName||'',p.operation,
-      p.operand1,p.operand2,p.correctAnswer,p.userAnswer,p.wasCorrect,
+    const s=sMap[p.sessionId]||{}, c=s.config;
+    lines.push([p.sessionId,s.endedAt||'',s.presetName||'',
+      opsStr(c),rng(c&&c.add),rng(c&&c.mul),(c&&c.durationSec)||s.durationSec||'',
+      p.operation,p.operand1,p.operand2,p.correctAnswer,p.userAnswer,p.wasCorrect,
       p.msToAnswer,new Date(p.timestamp).toISOString()].map(csvCell).join(','));
   }
   const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
@@ -1101,6 +1178,7 @@ async function downloadCSV(){
    WIRING
    =================================================================== */
 $('btn-start').addEventListener('click',startGame);
+$('btn-challenge').addEventListener('click',startChallenge);
 $('btn-options').addEventListener('click',openOptionsMenu);
 $('btn-quit').addEventListener('click',quitGame);
 $('btn-settings').addEventListener('click',()=>{ syncSettings(); openSheet('sheet-settings'); });
