@@ -34,6 +34,9 @@ jobs:
           N=$(git rev-list --count HEAD)
           SHA=$(git rev-parse --short HEAD)
           sed -i "s|__BUILD__|build ${N} · ${SHA}|g" _site/index.html
+          # Fold app-logic.js into index.html so prod ships one atomic resource
+          # (a skewed index.html + app-logic.js cache pair otherwise breaks Z).
+          node build-inline.js _site/index.html _site/app-logic.js
           echo "Deployed: build ${N} · ${SHA}"
 
       - name: Configure Pages
