@@ -337,3 +337,23 @@ test('genProblem only emits enabled operations', () => {
   const rng = () => ((i++ * 0.137) % 1); // cheap spread across [0,1)
   for (let n = 0; n < 200; n++) assert.equal(Z.genProblem(cfg, rng).operation, TIMES);
 });
+
+test('genProblem never divides by zero even when the mul range admits 0', () => {
+  // the input layer accepts min >= 0, so a 0-inclusive mul range must not
+  // produce a 0 / 0 (or anything / 0) problem with a bogus stored answer
+  const cfg = {
+    ops: { add: false, sub: false, mul: false, div: true },
+    add: { min1: 1, max1: 9, min2: 1, max2: 9 },
+    mul: { min1: 0, max1: 0, min2: 2, max2: 4 },
+  };
+  let i = 0;
+  const rng = () => ((i++ * 0.137) % 1);
+  for (let n = 0; n < 500; n++) {
+    const p = Z.genProblem(cfg, rng);
+    assert.equal(p.operation, DIV);
+    assert.ok(p.operand2 >= 1, `divisor < 1: ${p.display}`);
+    // the stored answer must be the true quotient, not an unrelated factor
+    assert.equal(Z.answerFor(p.operation, p.operand1, p.operand2), p.correctAnswer, `bad div: ${p.display}`);
+    assert.ok(Number.isInteger(p.correctAnswer), `non-integer div: ${p.display}`);
+  }
+});

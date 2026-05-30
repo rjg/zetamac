@@ -744,6 +744,9 @@ function P(op,o1,o2,ans,display){
 
 /* ---------- challenge: drill your historically hardest facts ---------- */
 let activePool=null, lastFactKey=null;
+/* weak-fact pool for Challenge, refreshed on every renderHome so startChallenge
+   can run synchronously — its focus() must stay inside the tap gesture (iOS). */
+let challengePool=[];
 /* computeWeakFacts / answerFor / canonFact / factKey live in app-logic.js
    (shared with tests). */
 function genFromPool(){
@@ -829,8 +832,10 @@ function startGame(){
   attachGhost(config.presetName);
 }
 
-async function startChallenge(){
-  const facts=computeWeakFacts(await Store.getProblems(),30);
+/* synchronous so beginGame()'s focus() stays inside the tap gesture and the iOS
+   keyboard opens; the weak-fact pool is precomputed in renderHome. */
+function startChallenge(){
+  const facts=challengePool;
   if(facts.length<6){ toast('Not enough history yet — play a few games first'); return; }
   activePool=facts;
   const ops={add:false,sub:false,mul:false,div:false};
@@ -854,7 +859,7 @@ function tick(){
       gh.innerHTML=GHOST_SVG+'<span>Ghost '+g+' &middot; '+(diff>=0?'+'+diff:diff)+'</span>';
     }
   }
-  if(remaining<=0){ endGame(); }
+  if(remaining<=0){ endGame().catch(err=>console.error('endGame failed',err)); }
 }
 
 function onAnswerInput(){
@@ -915,22 +920,31 @@ async function endGame(){
     rate:probs.length/(game.elapsedMs/1000),
     config:game.config,
   };
-  await Store.addSession(session);
-  await Store.addProblems(probs);
-
-  /* XP: 1 per solved problem (the score). Arm the goal celebration when this
-     game is the one that closes today's goal. */
+  /* XP: 1 per solved problem (the score). awardXp only mutates progress in
+     memory, so compute it up front — the results sheet shows it even if the
+     persistence below fails. */
   const xpEarned=awardXp(progress,xpForSession(session));
-  await Store.saveProgress(progress);
-  const todayCount=dayCounts(await Store.getSessions())[dayKey(new Date())]||0;
-  if(todayCount===DAILY_GOAL) celebrateGoal=true;
-
   const ghost=game.ghost
     ? {your:session.score, ghost:ghostScoreAt(game.ghost.rate,game.elapsedMs)} : null;
 
+  /* Persist, but never let a storage failure (quota, Private Browsing, aborted
+     txn) strand the player on the game screen — the UI recovery below always
+     runs. */
+  try{
+    await Store.addSession(session);
+    await Store.addProblems(probs);
+    await Store.saveProgress(progress);
+    /* Arm the goal celebration when this game closes today's goal. */
+    const todayCount=dayCounts(await Store.getSessions())[dayKey(new Date())]||0;
+    if(todayCount===DAILY_GOAL) celebrateGoal=true;
+  }catch(err){
+    console.error('endGame: failed to save session',err);
+    toast('Could not save this game');
+  }
+
   $('answer').blur();
   showScreen('home');
-  await renderHome();
+  await renderHome().catch(err=>console.error('endGame: renderHome failed',err));
   openResults(session,probs,{xpEarned,ghost});
 }
 
@@ -1133,6 +1147,7 @@ async function renderHome(){
   if(reconcileFreezes(counts,progress,new Date(),DAILY_GOAL)>0)
     await Store.saveProgress(progress);
   renderStreak();
+  challengePool=computeWeakFacts(await Store.getProblems(),30);
   const sessions=(await Store.getSessions())
     .sort((a,b)=>new Date(b.endedAt)-new Date(a.endedAt));
   const list=$('games-list');

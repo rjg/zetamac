@@ -81,7 +81,9 @@
       return makeProblem(TIMES, x, y, x * y);
     }
     // div: x * y = prod  ->  prod / one = other
-    const x = randInt(rng, m.min1, m.max1), y = randInt(rng, m.min2, m.max2), prod = x * y;
+    // operands are clamped to >= 1 so the divisor is never 0 (no 0 / 0)
+    const x = randInt(rng, Math.max(1, m.min1), Math.max(1, m.max1)),
+          y = randInt(rng, Math.max(1, m.min2), Math.max(1, m.max2)), prod = x * y;
     return rng() < 0.5 ? makeProblem(DIV, prod, x, y) : makeProblem(DIV, prod, y, x);
   }
 
